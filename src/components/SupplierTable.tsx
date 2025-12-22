@@ -290,8 +290,8 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                         <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${action.bgColor} ${action.color} cursor-default`}>
                           {action.icon} {action.label}
                         </span>
-                        {/* Tooltip med full beskrivning */}
-                        <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-xl">
+                        {/* Tooltip med full beskrivning - öppnas åt vänster */}
+                        <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-xl">
                           <div className={`text-xs font-bold ${action.color} mb-1`}>{action.label}</div>
                           {action.description}
                         </div>
