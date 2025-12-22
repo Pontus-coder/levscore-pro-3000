@@ -215,10 +215,10 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                   <span className="text-[10px] font-normal normal-case text-slate-500">A=Kärna B=Viktig C=Svans</span>
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider min-w-[280px]">
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                 <div className="flex flex-col">
                   <span>Nästa steg</span>
-                  <span className="text-[10px] font-normal normal-case text-slate-500">Rekommenderad åtgärd</span>
+                  <span className="text-[10px] font-normal normal-case text-slate-500">Hovra för detaljer</span>
                 </div>
               </th>
             </tr>
@@ -286,13 +286,15 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                     if (!action) return <span className="text-slate-600">-</span>
                     
                     return (
-                      <div className="flex items-start gap-2">
-                        <span className={`shrink-0 px-2 py-1 rounded text-xs font-bold ${action.bgColor} ${action.color}`}>
+                      <div className="group relative inline-block">
+                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${action.bgColor} ${action.color} cursor-default`}>
                           {action.icon} {action.label}
                         </span>
-                        <span className="text-sm text-slate-300 leading-tight">
+                        {/* Tooltip med full beskrivning */}
+                        <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-xl">
+                          <div className={`text-xs font-bold ${action.color} mb-1`}>{action.label}</div>
                           {action.description}
-                        </span>
+                        </div>
                       </div>
                     )
                   })()}
