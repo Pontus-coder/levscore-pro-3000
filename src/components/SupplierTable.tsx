@@ -72,6 +72,47 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
     return "text-red-400"
   }
 
+  // Extrahera tier-bokstav (A, B, C) från full tier-sträng
+  const getTierLetter = (tier: string | null): string => {
+    if (!tier) return "-"
+    return tier.charAt(0)
+  }
+
+  // Färg för tier
+  const getTierColor = (tier: string | null) => {
+    if (!tier) return { bg: "bg-slate-700", text: "text-slate-400" }
+    const letter = tier.charAt(0)
+    if (letter === "A") return { bg: "bg-emerald-500/20", text: "text-emerald-400", border: "border-emerald-500/30" }
+    if (letter === "B") return { bg: "bg-blue-500/20", text: "text-blue-400", border: "border-blue-500/30" }
+    return { bg: "bg-orange-500/20", text: "text-orange-400", border: "border-orange-500/30" }
+  }
+
+  // Parsea handling/åtgärd till action-typ och beskrivning
+  const parseAction = (action: string | null) => {
+    if (!action) return null
+    
+    const actionTypes: Record<string, { label: string, color: string, bgColor: string, icon: string }> = {
+      "SKALA": { label: "SKALA", color: "text-emerald-400", bgColor: "bg-emerald-500/20", icon: "↗" },
+      "BREDD": { label: "BREDD", color: "text-blue-400", bgColor: "bg-blue-500/20", icon: "+" },
+      "SELEKTIV": { label: "SELEKTIV", color: "text-cyan-400", bgColor: "bg-cyan-500/20", icon: "◎" },
+      "OPTIMERA": { label: "OPTIMERA", color: "text-amber-400", bgColor: "bg-amber-500/20", icon: "⚙" },
+      "PAUSA": { label: "PAUSA", color: "text-red-400", bgColor: "bg-red-500/20", icon: "⏸" },
+      "UTVÄRDERA": { label: "UTVÄRDERA", color: "text-purple-400", bgColor: "bg-purple-500/20", icon: "?" },
+    }
+
+    // Hitta vilken action-typ det är
+    for (const [key, config] of Object.entries(actionTypes)) {
+      if (action.toUpperCase().startsWith(key)) {
+        // Extrahera beskrivningen efter kolon
+        const colonIndex = action.indexOf(":")
+        const description = colonIndex > -1 ? action.substring(colonIndex + 1).trim() : action
+        return { ...config, description }
+      }
+    }
+
+    return { label: "ÅTGÄRD", color: "text-slate-400", bgColor: "bg-slate-500/20", icon: "•", description: action }
+  }
+
   const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) {
       return (
@@ -112,17 +153,24 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
           >
             Alla
           </button>
-          {tiers.map((tier) => (
-            <button
-              key={tier}
-              onClick={() => setTierFilter(tier)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                tierFilter === tier ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-              }`}
-            >
-              {tier}
-            </button>
-          ))}
+          {tiers.map((tier) => {
+            const colors = getTierColor(tier)
+            const letter = getTierLetter(tier)
+            return (
+              <button
+                key={tier}
+                onClick={() => setTierFilter(tier)}
+                className={`w-8 h-8 text-sm font-bold rounded-lg transition-colors ${
+                  tierFilter === tier 
+                    ? `${colors.bg} ${colors.text}` 
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                }`}
+                title={tier || ""}
+              >
+                {letter}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -162,10 +210,16 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                 </div>
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Tier
+                <div className="flex flex-col items-center">
+                  <span>Tier</span>
+                  <span className="text-[10px] font-normal normal-case text-slate-500">A=Kärna B=Viktig C=Svans</span>
+                </div>
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Handling
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider min-w-[280px]">
+                <div className="flex flex-col">
+                  <span>Nästa steg</span>
+                  <span className="text-[10px] font-normal normal-case text-slate-500">Rekommenderad åtgärd</span>
+                </div>
               </th>
             </tr>
           </thead>
@@ -212,14 +266,36 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                   </div>
                 </td>
                 <td className="px-4 py-4 text-center">
-                  {supplier.tier && (
-                    <Badge variant="tier" tier={supplier.tier}>
-                      {supplier.tier}
-                    </Badge>
+                  {supplier.tier ? (
+                    <div className="group relative inline-block">
+                      <div className={`w-9 h-9 rounded-full ${getTierColor(supplier.tier).bg} ${getTierColor(supplier.tier).text} border ${getTierColor(supplier.tier).border} flex items-center justify-center font-bold text-lg`}>
+                        {getTierLetter(supplier.tier)}
+                      </div>
+                      {/* Tooltip on hover */}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none shadow-xl">
+                        {supplier.tier}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-slate-600">-</span>
                   )}
                 </td>
-                <td className="px-4 py-4 text-sm text-slate-400 max-w-[200px] truncate">
-                  {supplier.shortAction || "-"}
+                <td className="px-4 py-4">
+                  {(() => {
+                    const action = parseAction(supplier.shortAction)
+                    if (!action) return <span className="text-slate-600">-</span>
+                    
+                    return (
+                      <div className="flex items-start gap-2">
+                        <span className={`shrink-0 px-2 py-1 rounded text-xs font-bold ${action.bgColor} ${action.color}`}>
+                          {action.icon} {action.label}
+                        </span>
+                        <span className="text-sm text-slate-300 leading-tight">
+                          {action.description}
+                        </span>
+                      </div>
+                    )
+                  })()}
                 </td>
               </tr>
             ))}
