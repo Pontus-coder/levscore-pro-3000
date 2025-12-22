@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { calculateDerivedFields } from "@/lib/score-calculator"
 import * as XLSX from 'xlsx'
 
 interface ColumnMapping {
@@ -93,7 +94,8 @@ export async function POST(request: NextRequest) {
       
       if (!supplierNumber || !supplierName) continue
       
-      suppliers.push({
+      // Hämta grunddata
+      const baseData = {
         supplierNumber,
         name: supplierName,
         rowCount: mapping.rowCount ? parseNumericValue(rowObj[mapping.rowCount]) : 0,
@@ -111,6 +113,16 @@ export async function POST(request: NextRequest) {
         accumulatedShare: mapping.accumulatedShare ? parseNumericValue(rowObj[mapping.accumulatedShare]) : 0,
         tier: mapping.tier ? parseStringValue(rowObj[mapping.tier]) : null,
         profile: mapping.profile ? parseStringValue(rowObj[mapping.profile]) : null,
+      }
+      
+      // Beräkna härledda fält om de saknas
+      const derived = calculateDerivedFields(baseData)
+      
+      suppliers.push({
+        ...baseData,
+        diagnosis: baseData.diagnosis || derived.diagnosis,
+        shortAction: baseData.shortAction || derived.shortAction,
+        tier: baseData.tier || derived.tier,
       })
     }
 
