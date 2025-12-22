@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String?
+  email         String?        @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  customFactors CustomFactor[]
+  uploads       UploadHistory[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Supplier {
+  id                String         @id @default(cuid())
+  supplierNumber    String         @unique
+  name              String
+  rowCount          Int            @default(0)
+  totalQuantity     Int            @default(0)
+  totalRevenue      Decimal        @default(0) @db.Decimal(15, 2)
+  avgMargin         Decimal        @default(0) @db.Decimal(5, 2)
+  salesScore        Decimal        @default(0) @db.Decimal(5, 2)
+  assortmentScore   Decimal        @default(0) @db.Decimal(5, 2)
+  efficiencyScore   Decimal        @default(0) @db.Decimal(5, 2)
+  marginScore       Decimal        @default(0) @db.Decimal(5, 2)
+  totalScore        Decimal        @default(0) @db.Decimal(5, 2)
+  diagnosis         String?        @db.Text
+  shortAction       String?
+  revenueShare      Decimal        @default(0) @db.Decimal(5, 4)
+  accumulatedShare  Decimal        @default(0) @db.Decimal(5, 4)
+  tier              String?
+  profile           String?
+  customFactors     CustomFactor[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+model CustomFactor {
+  id          String   @id @default(cuid())
+  supplierId  String
+  userId      String
+  factorName  String
+  factorValue Decimal  @db.Decimal(5, 2)
+  weight      Decimal  @default(1) @db.Decimal(3, 2)
+  comment     String?  @db.Text
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model UploadHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  filename      String
+  supplierCount Int
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uploadedAt    DateTime @default(now())
+}
