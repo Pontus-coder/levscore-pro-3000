@@ -7,8 +7,17 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const searchParams = request.nextUrl.searchParams
@@ -17,7 +26,10 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "totalScore"
     const sortOrder = searchParams.get("sortOrder") || "desc"
 
-    const where: Record<string, unknown> = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const where: Record<string, any> = {
+      userId: user.id,
+    }
     
     if (tier) {
       where.tier = tier
@@ -75,4 +87,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

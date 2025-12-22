@@ -48,8 +48,17 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const formData = await request.formData()
@@ -98,6 +107,7 @@ export async function POST(request: NextRequest) {
       const baseData = {
         supplierNumber,
         name: supplierName,
+        userId: user.id,
         rowCount: mapping.rowCount ? parseNumericValue(rowObj[mapping.rowCount]) : 0,
         totalQuantity: mapping.totalQuantity ? parseNumericValue(rowObj[mapping.totalQuantity]) : 0,
         totalRevenue: mapping.totalRevenue ? parseNumericValue(rowObj[mapping.totalRevenue]) : 0,
@@ -134,29 +144,51 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert suppliers
-    const results = await Promise.all(
-      suppliers.map(async (supplier) => {
-        return prisma.supplier.upsert({
-          where: { supplierNumber: supplier.supplierNumber },
-          update: supplier,
-          create: supplier,
-        })
+    let created = 0
+    let updated = 0
+
+    for (const supplier of suppliers) {
+      const existing = await prisma.supplier.findUnique({
+        where: {
+          supplierNumber_userId: {
+            supplierNumber: supplier.supplierNumber,
+            userId: user.id,
+          },
+        },
       })
-    )
+
+      if (existing) {
+        await prisma.supplier.update({
+          where: { id: existing.id },
+          data: supplier,
+        })
+        updated++
+      } else {
+        await prisma.supplier.create({
+          data: supplier,
+        })
+        created++
+      }
+    }
 
     // Log the upload
     await prisma.uploadHistory.create({
       data: {
-        userId: session.user.id,
-        filename: file.name,
-        supplierCount: results.length,
+        userId: user.id,
+        fileName: file.name,
+        recordCount: suppliers.length,
+        status: "completed",
       },
     })
 
     return NextResponse.json({
       success: true,
-      message: `${results.length} leverantörer importerade`,
-      count: results.length,
+      message: `${suppliers.length} leverantörer importerade`,
+      stats: {
+        suppliersCreated: created,
+        suppliersUpdated: updated,
+        totalSuppliers: suppliers.length,
+      },
     })
   } catch (error) {
     console.error("Error importing file:", error)
@@ -166,4 +198,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
