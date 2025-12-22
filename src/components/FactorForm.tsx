@@ -14,6 +14,7 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showHelp, setShowHelp] = useState(false)
   
   const [formData, setFormData] = useState({
     factorName: "",
@@ -77,39 +78,104 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
 
   return (
     <Card variant="glass" className="animate-in fade-in slide-in-from-top-2 duration-300">
-      <h3 className="text-lg font-semibold text-slate-100 mb-4">Lägg till egen faktor</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-slate-100">Lägg till egen faktor</h3>
+        <button
+          type="button"
+          onClick={() => setShowHelp(!showHelp)}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-emerald-400 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {showHelp ? "Dölj hjälp" : "Hur fungerar det?"}
+        </button>
+      </div>
+
+      {/* Help section */}
+      {showHelp && (
+        <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700 text-sm">
+          <p className="text-slate-300 mb-3">
+            Egna faktorer justerar leverantörens totalpoäng baserat på information som inte finns i importerad data.
+          </p>
+          
+          <div className="space-y-3">
+            <div>
+              <p className="font-medium text-emerald-400 mb-1">Poäng = VAD du vill säga</p>
+              <p className="text-slate-400">
+                Positiv (+) = något bra, höjer scoren. Negativ (-) = något dåligt, sänker scoren.
+              </p>
+            </div>
+            
+            <div>
+              <p className="font-medium text-emerald-400 mb-1">Vikt = HUR SÄKER du är</p>
+              <p className="text-slate-400">
+                1.0 = fakta, 100% säker. 0.5 = ganska säker. 0.2 = osäker/rykten.
+              </p>
+            </div>
+
+            <div className="pt-2 border-t border-slate-700">
+              <p className="font-medium text-slate-300 mb-2">Exempel:</p>
+              <div className="grid gap-1.5 text-xs">
+                <div className="flex justify-between text-slate-400">
+                  <span>Bra partner, bekräftad</span>
+                  <span className="text-emerald-400">+5 × 1.0 = <strong>+5.0</strong></span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Bra partner, nya för oss</span>
+                  <span className="text-amber-400">+5 × 0.5 = <strong>+2.5</strong></span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Leveransproblem ibland</span>
+                  <span className="text-red-400">-3 × 0.7 = <strong>-2.1</strong></span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>Hört rykten om problem</span>
+                  <span className="text-orange-400">-3 × 0.2 = <strong>-0.6</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
           label="Faktornamn"
-          placeholder="t.ex. Leveranssäkerhet"
+          placeholder="t.ex. Samarbetspartner, Leveransproblem, Lokal leverantör"
           value={formData.factorName}
           onChange={(e) => setFormData({ ...formData, factorName: e.target.value })}
           required
         />
         
         <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Poäng (-100 till 100)"
-            type="number"
-            min="-100"
-            max="100"
-            placeholder="0"
-            value={formData.factorValue}
-            onChange={(e) => setFormData({ ...formData, factorValue: e.target.value })}
-            required
-          />
+          <div>
+            <Input
+              label="Poäng"
+              type="number"
+              min="-100"
+              max="100"
+              placeholder="0"
+              value={formData.factorValue}
+              onChange={(e) => setFormData({ ...formData, factorValue: e.target.value })}
+              required
+            />
+            <p className="text-xs text-slate-500 mt-1">+ bonus / - straff</p>
+          </div>
           
-          <Input
-            label="Vikt (0-1)"
-            type="number"
-            min="0"
-            max="1"
-            step="0.1"
-            placeholder="1"
-            value={formData.weight}
-            onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
-          />
+          <div>
+            <Input
+              label="Vikt"
+              type="number"
+              min="0"
+              max="1"
+              step="0.1"
+              placeholder="1"
+              value={formData.weight}
+              onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+            />
+            <p className="text-xs text-slate-500 mt-1">1.0 = säker, 0.5 = osäker</p>
+          </div>
         </div>
         
         <div>
@@ -149,4 +215,3 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
     </Card>
   )
 }
-
