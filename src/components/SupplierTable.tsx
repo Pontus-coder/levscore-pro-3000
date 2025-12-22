@@ -91,13 +91,13 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
   const parseAction = (action: string | null) => {
     if (!action) return null
     
-    const actionTypes: Record<string, { label: string, color: string, bgColor: string, icon: string }> = {
-      "SKALA": { label: "SKALA", color: "text-emerald-400", bgColor: "bg-emerald-500/20", icon: "↗" },
-      "BREDD": { label: "BREDD", color: "text-blue-400", bgColor: "bg-blue-500/20", icon: "+" },
-      "SELEKTIV": { label: "SELEKTIV", color: "text-cyan-400", bgColor: "bg-cyan-500/20", icon: "◎" },
-      "OPTIMERA": { label: "OPTIMERA", color: "text-amber-400", bgColor: "bg-amber-500/20", icon: "⚙" },
-      "PAUSA": { label: "PAUSA", color: "text-red-400", bgColor: "bg-red-500/20", icon: "⏸" },
-      "UTVÄRDERA": { label: "UTVÄRDERA", color: "text-purple-400", bgColor: "bg-purple-500/20", icon: "?" },
+    const actionTypes: Record<string, { label: string, color: string, bgColor: string, borderColor: string }> = {
+      "SKALA": { label: "SKALA", color: "text-emerald-400", bgColor: "bg-emerald-500/20", borderColor: "border-emerald-500/30" },
+      "BREDD": { label: "BREDD", color: "text-blue-400", bgColor: "bg-blue-500/20", borderColor: "border-blue-500/30" },
+      "SELEKTIV": { label: "SELEKTIV", color: "text-cyan-400", bgColor: "bg-cyan-500/20", borderColor: "border-cyan-500/30" },
+      "OPTIMERA": { label: "OPTIMERA", color: "text-amber-400", bgColor: "bg-amber-500/20", borderColor: "border-amber-500/30" },
+      "PAUSA": { label: "PAUSA", color: "text-red-400", bgColor: "bg-red-500/20", borderColor: "border-red-500/30" },
+      "UTVÄRDERA": { label: "UTVÄRDERA", color: "text-purple-400", bgColor: "bg-purple-500/20", borderColor: "border-purple-500/30" },
     }
 
     // Hitta vilken action-typ det är
@@ -110,7 +110,7 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
       }
     }
 
-    return { label: "ÅTGÄRD", color: "text-slate-400", bgColor: "bg-slate-500/20", icon: "•", description: action }
+    return { label: "ÅTGÄRD", color: "text-slate-400", bgColor: "bg-slate-500/20", borderColor: "border-slate-500/30", description: action }
   }
 
   const SortIcon = ({ field }: { field: string }) => {
@@ -287,8 +287,8 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                     
                     return (
                       <div className="group relative inline-block">
-                        <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${action.bgColor} ${action.color} cursor-default`}>
-                          {action.icon} {action.label}
+                        <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-bold border ${action.bgColor} ${action.color} ${action.borderColor} cursor-default`}>
+                          {action.label}
                         </span>
                         {/* Tooltip med full beskrivning - öppnas åt vänster */}
                         <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-xl">
