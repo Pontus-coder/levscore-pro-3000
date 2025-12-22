@@ -117,20 +117,30 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     return `${num.toFixed(1)}%`
   }
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-emerald-400"
-    if (score >= 60) return "text-blue-400"
-    if (score >= 40) return "text-amber-400"
-    if (score >= 20) return "text-orange-400"
+  // Färger baserat på procent av max (0-100%)
+  const getScoreColor = (percent: number) => {
+    if (percent >= 80) return "text-emerald-400"
+    if (percent >= 60) return "text-blue-400"
+    if (percent >= 40) return "text-amber-400"
+    if (percent >= 20) return "text-orange-400"
     return "text-red-400"
   }
 
-  const getScoreBg = (score: number) => {
-    if (score >= 80) return "bg-emerald-500"
-    if (score >= 60) return "bg-blue-500"
-    if (score >= 40) return "bg-amber-500"
-    if (score >= 20) return "bg-orange-500"
+  const getScoreBg = (percent: number) => {
+    if (percent >= 80) return "bg-emerald-500"
+    if (percent >= 60) return "bg-blue-500"
+    if (percent >= 40) return "bg-amber-500"
+    if (percent >= 20) return "bg-orange-500"
     return "bg-red-500"
+  }
+
+  // Färger för total score (max 10)
+  const getTotalScoreColor = (score: number) => {
+    if (score >= 8) return "text-emerald-400"
+    if (score >= 6) return "text-blue-400"
+    if (score >= 4) return "text-amber-400"
+    if (score >= 2) return "text-orange-400"
+    return "text-red-400"
   }
 
   if (status === "loading" || isLoading) {
@@ -165,12 +175,15 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     return null
   }
 
+  // Varje score har sitt eget maxvärde
   const scores = [
-    { name: "Sales", value: parseFloat(supplier.salesScore), label: "Försäljning" },
-    { name: "Assortment", value: parseFloat(supplier.assortmentScore), label: "Sortiment" },
-    { name: "Efficiency", value: parseFloat(supplier.efficiencyScore), label: "Effektivitet" },
-    { name: "Margin", value: parseFloat(supplier.marginScore), label: "Marginal" },
+    { name: "Sales", value: parseFloat(supplier.salesScore), max: 3, label: "Försäljning", desc: "Omsättning relativt till andra" },
+    { name: "Assortment", value: parseFloat(supplier.assortmentScore), max: 2, label: "Sortimentsbredd", desc: "Antal artiklar/rader" },
+    { name: "Efficiency", value: parseFloat(supplier.efficiencyScore), max: 2, label: "Effektivitet", desc: "Omsättning per artikel" },
+    { name: "Margin", value: parseFloat(supplier.marginScore), max: 3, label: "Marginal", desc: "Täckningsgrad (TG)" },
   ]
+  
+  const totalMax = 10 // Sum av alla max (3+2+2+3)
 
   return (
     <div className="min-h-screen">
@@ -200,9 +213,10 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           
           <div className="text-right">
             <div className="text-4xl font-bold mb-1">
-              <span className={getScoreColor(supplier.adjustedTotalScore)}>
+              <span className={getTotalScoreColor(supplier.adjustedTotalScore)}>
                 {supplier.adjustedTotalScore.toFixed(1)}
               </span>
+              <span className="text-xl text-slate-500 font-normal"> / 10</span>
             </div>
             <p className="text-sm text-slate-500">
               Total Score (inkl. egna faktorer)
@@ -215,24 +229,88 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           <div className="lg:col-span-2 space-y-6">
             {/* Score Breakdown */}
             <Card variant="glass">
-              <h2 className="text-lg font-semibold text-slate-100 mb-6">Score-fördelning</h2>
-              <div className="space-y-4">
-                {scores.map((score) => (
-                  <div key={score.name}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-slate-300">{score.label}</span>
-                      <span className={`font-bold ${getScoreColor(score.value)}`}>
-                        {score.value.toFixed(1)}
-                      </span>
-                    </div>
-                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${getScoreBg(score.value)} transition-all duration-500`}
-                        style={{ width: `${Math.min(score.value, 100)}%` }}
-                      />
-                    </div>
+              <h2 className="text-lg font-semibold text-slate-100 mb-2">Score-fördelning</h2>
+              <p className="text-sm text-slate-500 mb-6">Varje kategori bidrar till den totala scoren (max {totalMax})</p>
+              
+              {/* Total Score Bar */}
+              <div className="mb-6 p-4 bg-slate-800/50 rounded-xl">
+                <div className="flex justify-between items-end mb-2">
+                  <span className="text-slate-300 font-medium">Total Score</span>
+                  <div className="text-right">
+                    <span className={`text-2xl font-bold ${getTotalScoreColor(supplier.adjustedTotalScore)}`}>
+                      {supplier.adjustedTotalScore.toFixed(1)}
+                    </span>
+                    <span className="text-slate-500 text-sm ml-1">/ {totalMax}</span>
                   </div>
-                ))}
+                </div>
+                <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${getScoreBg((supplier.adjustedTotalScore / totalMax) * 100)} transition-all duration-500`}
+                    style={{ width: `${Math.min((supplier.adjustedTotalScore / totalMax) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                {scores.map((score) => {
+                  const percent = (score.value / score.max) * 100
+                  return (
+                    <div key={score.name}>
+                      <div className="flex justify-between items-end mb-1.5">
+                        <div>
+                          <span className="text-slate-200 font-medium">{score.label}</span>
+                          <p className="text-xs text-slate-500">{score.desc}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-lg font-bold ${getScoreColor(percent)}`}>
+                            {score.value.toFixed(1)}
+                          </span>
+                          <span className="text-slate-500 text-sm ml-1">/ {score.max}</span>
+                        </div>
+                      </div>
+                      <div className="h-3 bg-slate-700 rounded-full overflow-hidden relative">
+                        {/* Tick marks at 25%, 50%, 75% */}
+                        <div className="absolute inset-0 flex">
+                          <div className="w-1/4 border-r border-slate-600/50" />
+                          <div className="w-1/4 border-r border-slate-600/50" />
+                          <div className="w-1/4 border-r border-slate-600/50" />
+                          <div className="w-1/4" />
+                        </div>
+                        <div
+                          className={`h-full ${getScoreBg(percent)} transition-all duration-500 relative z-10`}
+                          style={{ width: `${Math.min(percent, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              
+              {/* Score Legend */}
+              <div className="mt-6 pt-4 border-t border-slate-700">
+                <p className="text-xs text-slate-500 mb-2">Färgskala:</p>
+                <div className="flex gap-4 text-xs">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                    <span className="text-slate-400">Stark (80%+)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="text-slate-400">Bra (60-79%)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-amber-500" />
+                    <span className="text-slate-400">OK (40-59%)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-orange-500" />
+                    <span className="text-slate-400">Svag (20-39%)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="text-slate-400">Kritisk (&lt;20%)</span>
+                  </div>
+                </div>
               </div>
             </Card>
 
@@ -378,19 +456,25 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               <div className="space-y-3">
                 <div>
                   <p className="text-sm text-slate-400 mb-1">Original score</p>
-                  <p className="text-2xl font-bold text-slate-300">
-                    {parseFloat(supplier.totalScore).toFixed(1)}
+                  <p className="text-2xl font-bold">
+                    <span className={getTotalScoreColor(parseFloat(supplier.totalScore))}>
+                      {parseFloat(supplier.totalScore).toFixed(1)}
+                    </span>
+                    <span className="text-sm text-slate-500 font-normal ml-1">/ 10</span>
                   </p>
                 </div>
                 <div className="border-t border-slate-700 pt-3">
                   <p className="text-sm text-slate-400 mb-1">Justerad score</p>
-                  <p className={`text-2xl font-bold ${getScoreColor(supplier.adjustedTotalScore)}`}>
-                    {supplier.adjustedTotalScore.toFixed(1)}
+                  <p className="text-2xl font-bold">
+                    <span className={getTotalScoreColor(supplier.adjustedTotalScore)}>
+                      {supplier.adjustedTotalScore.toFixed(1)}
+                    </span>
+                    <span className="text-sm text-slate-500 font-normal ml-1">/ 10</span>
                   </p>
                 </div>
                 {supplier.customFactors.length > 0 && (
                   <div className="border-t border-slate-700 pt-3">
-                    <p className="text-sm text-slate-400 mb-1">Skillnad</p>
+                    <p className="text-sm text-slate-400 mb-1">Effekt av egna faktorer</p>
                     <p className={`text-lg font-bold ${
                       supplier.adjustedTotalScore - parseFloat(supplier.totalScore) >= 0 
                         ? "text-emerald-400" 

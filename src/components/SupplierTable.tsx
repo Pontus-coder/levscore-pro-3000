@@ -63,11 +63,12 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
     return num.toFixed(1)
   }
 
+  // Färger baserat på total score (max 10)
   const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-emerald-400"
-    if (score >= 60) return "text-blue-400"
-    if (score >= 40) return "text-amber-400"
-    if (score >= 20) return "text-orange-400"
+    if (score >= 8) return "text-emerald-400"
+    if (score >= 6) return "text-blue-400"
+    if (score >= 4) return "text-amber-400"
+    if (score >= 2) return "text-orange-400"
     return "text-red-400"
   }
 
@@ -188,10 +189,27 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                 <td className="px-4 py-4 text-right font-mono text-slate-200">
                   {formatPercent(supplier.avgMargin)}
                 </td>
-                <td className="px-4 py-4 text-right">
-                  <span className={`font-bold text-lg ${getScoreColor(parseFloat(supplier.totalScore))}`}>
-                    {formatScore(supplier.totalScore)}
-                  </span>
+                <td className="px-4 py-4">
+                  <div className="flex flex-col items-end gap-1">
+                    <div>
+                      <span className={`font-bold text-lg ${getScoreColor(parseFloat(supplier.totalScore))}`}>
+                        {formatScore(supplier.totalScore)}
+                      </span>
+                      <span className="text-xs text-slate-500 ml-0.5">/10</span>
+                    </div>
+                    {/* Mini progress bar */}
+                    <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          parseFloat(supplier.totalScore) >= 8 ? "bg-emerald-500" :
+                          parseFloat(supplier.totalScore) >= 6 ? "bg-blue-500" :
+                          parseFloat(supplier.totalScore) >= 4 ? "bg-amber-500" :
+                          parseFloat(supplier.totalScore) >= 2 ? "bg-orange-500" : "bg-red-500"
+                        }`}
+                        style={{ width: `${Math.min((parseFloat(supplier.totalScore) / 10) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
                 </td>
                 <td className="px-4 py-4 text-center">
                   {supplier.tier && (

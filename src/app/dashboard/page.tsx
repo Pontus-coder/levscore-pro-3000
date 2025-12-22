@@ -188,7 +188,7 @@ export default function DashboardPage() {
               <KPICard
                 title="Genomsnittlig Score"
                 value={(stats?.avgTotalScore || 0).toFixed(1)}
-                subtitle="av 100"
+                subtitle="av 10"
                 variant="default"
                 icon={
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
