@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getOrganizationContext } from "@/lib/organization"
 import { validateFile, sanitizeFilename, MAX_ROWS } from "@/lib/file-validation"
 import * as XLSX from 'xlsx'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const ctx = await getOrganizationContext()
     
-    if (!session?.user?.email) {
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 

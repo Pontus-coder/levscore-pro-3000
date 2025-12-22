@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { getOrganizationContext } from "@/lib/organization"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const ctx = await getOrganizationContext()
     
-    if (!session?.user?.email) {
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const searchParams = request.nextUrl.searchParams
@@ -28,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: Record<string, any> = {
-      userId: user.id,
+      organizationId: ctx.organization.id,
     }
     
     if (tier) {

@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { getOrganizationContext } from "@/lib/organization"
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const ctx = await getOrganizationContext()
     
-    if (!session?.user?.email) {
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const { id } = await params
@@ -54,8 +44,8 @@ export async function GET(
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
 
-    // SECURITY: Verify ownership - user can only access their own suppliers
-    if (supplier.userId !== user.id) {
+    // SECURITY: Verify ownership - supplier belongs to user's organization
+    if (supplier.organizationId !== ctx.organization.id) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
@@ -84,19 +74,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const ctx = await getOrganizationContext()
     
-    if (!session?.user?.email) {
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const { id } = await params
@@ -106,18 +87,18 @@ export async function DELETE(
       return NextResponse.json({ error: "Invalid supplier ID" }, { status: 400 })
     }
 
-    // First check if supplier exists and belongs to user
+    // First check if supplier exists and belongs to organization
     const supplier = await prisma.supplier.findUnique({
       where: { id },
-      select: { userId: true },
+      select: { organizationId: true },
     })
 
     if (!supplier) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
 
-    // SECURITY: Verify ownership - user can only delete their own suppliers
-    if (supplier.userId !== user.id) {
+    // SECURITY: Verify ownership
+    if (supplier.organizationId !== ctx.organization.id) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { getOrganizationContext } from "@/lib/organization"
 import { validateFile, sanitizeFilename, MAX_ROWS } from "@/lib/file-validation"
 import * as XLSX from "xlsx"
 import {
@@ -23,17 +22,10 @@ interface RawColumnMapping {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
+    const ctx = await getOrganizationContext()
+    
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const formData = await request.formData()
@@ -144,9 +136,9 @@ export async function POST(request: NextRequest) {
     for (const supplier of calculated) {
       const existing = await prisma.supplier.findUnique({
         where: {
-          supplierNumber_userId: {
+          supplierNumber_organizationId: {
             supplierNumber: supplier.supplierNumber,
-            userId: user.id,
+            organizationId: ctx.organization.id,
           },
         },
       })
@@ -181,7 +173,7 @@ export async function POST(request: NextRequest) {
         await prisma.supplier.create({
           data: {
             ...supplierData,
-            userId: user.id,
+            organizationId: ctx.organization.id,
           },
         })
         imported++
@@ -191,7 +183,8 @@ export async function POST(request: NextRequest) {
     // Spara uppladdningshistorik
     await prisma.uploadHistory.create({
       data: {
-        userId: user.id,
+        userId: ctx.user.id,
+        organizationId: ctx.organization.id,
         fileName: sanitizeFilename(file.name),
         recordCount: calculated.length,
         status: "completed",

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { getOrganizationContext } from "@/lib/organization"
 import { calculateDerivedFields } from "@/lib/score-calculator"
 import { validateFile, sanitizeFilename, MAX_ROWS } from "@/lib/file-validation"
 import * as XLSX from 'xlsx'
@@ -47,19 +46,10 @@ function parseStringValue(value: unknown, maxLength: number = 500): string | nul
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const ctx = await getOrganizationContext()
     
-    if (!session?.user?.email) {
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const formData = await request.formData()
@@ -134,7 +124,7 @@ export async function POST(request: NextRequest) {
       const baseData = {
         supplierNumber,
         name: supplierName,
-        userId: user.id,
+        organizationId: ctx.organization.id,
         rowCount: mapping.rowCount ? Math.max(0, parseNumericValue(rowObj[mapping.rowCount])) : 0,
         totalQuantity: mapping.totalQuantity ? Math.max(0, parseNumericValue(rowObj[mapping.totalQuantity])) : 0,
         totalRevenue: mapping.totalRevenue ? Math.max(0, parseNumericValue(rowObj[mapping.totalRevenue])) : 0,
@@ -177,9 +167,9 @@ export async function POST(request: NextRequest) {
     for (const supplier of suppliers) {
       const existing = await prisma.supplier.findUnique({
         where: {
-          supplierNumber_userId: {
+          supplierNumber_organizationId: {
             supplierNumber: supplier.supplierNumber,
-            userId: user.id,
+            organizationId: ctx.organization.id,
           },
         },
       })
@@ -201,7 +191,8 @@ export async function POST(request: NextRequest) {
     // Log the upload
     await prisma.uploadHistory.create({
       data: {
-        userId: user.id,
+        userId: ctx.user.id,
+        organizationId: ctx.organization.id,
         fileName: sanitizeFilename(file.name),
         recordCount: suppliers.length,
         status: "completed",

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { getOrganizationContext } from "@/lib/organization"
 
 // Input validation constants
 const MAX_FACTOR_NAME_LENGTH = 100
@@ -13,19 +12,10 @@ const MIN_WEIGHT = 0
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const ctx = await getOrganizationContext()
     
-    if (!session?.user?.email) {
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     let body
@@ -59,25 +49,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid comment" }, { status: 400 })
     }
 
-    // Verify supplier exists AND belongs to the user
+    // Verify supplier exists AND belongs to the user's organization
     const supplier = await prisma.supplier.findUnique({
       where: { id: supplierId },
-      select: { id: true, userId: true },
+      select: { id: true, organizationId: true },
     })
 
     if (!supplier) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
     }
 
-    // SECURITY: Verify ownership - user can only add factors to their own suppliers
-    if (supplier.userId !== user.id) {
+    // SECURITY: Verify organization ownership
+    if (supplier.organizationId !== ctx.organization.id) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
     const factor = await prisma.customFactor.create({
       data: {
         supplierId,
-        userId: user.id,
+        userId: ctx.user.id,
         factorName: factorName.trim().substring(0, MAX_FACTOR_NAME_LENGTH),
         factorValue: Math.max(MIN_FACTOR_VALUE, Math.min(MAX_FACTOR_VALUE, factorValue)),
         weight: weight ? Math.max(MIN_WEIGHT, Math.min(MAX_WEIGHT, weight)) : 1,
@@ -105,19 +95,10 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const ctx = await getOrganizationContext()
     
-    if (!session?.user?.email) {
+    if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -127,17 +108,27 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Factor ID required" }, { status: 400 })
     }
 
-    // Check if user owns this factor
+    // Get factor with supplier to check organization
     const factor = await prisma.customFactor.findUnique({
       where: { id: factorId },
+      include: {
+        supplier: {
+          select: { organizationId: true },
+        },
+      },
     })
 
     if (!factor) {
       return NextResponse.json({ error: "Factor not found" }, { status: 404 })
     }
 
+    // SECURITY: Verify organization
+    if (factor.supplier.organizationId !== ctx.organization.id) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    }
+
     // SECURITY: User can only delete their own factors
-    if (factor.userId !== user.id) {
+    if (factor.userId !== ctx.user.id) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 

@@ -39,18 +39,19 @@ model Session {
 }
 
 model User {
-  id            String         @id @default(cuid())
+  id            String               @id @default(cuid())
   name          String?
-  email         String?        @unique
+  email         String?              @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
-  suppliers     Supplier[]
+  memberships   OrganizationMember[]
   customFactors CustomFactor[]
   uploads       UploadHistory[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  invitationsSent Invitation[]       @relation("InvitedBy")
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
 }
 
 model VerificationToken {
@@ -61,12 +62,60 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// Organization/Team model
+model Organization {
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  members     OrganizationMember[]
+  suppliers   Supplier[]
+  uploads     UploadHistory[]
+  invitations Invitation[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+}
+
+// Links users to organizations with roles
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  role           MemberRole   @default(MEMBER)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+
+  @@unique([userId, organizationId])
+}
+
+enum MemberRole {
+  OWNER   // Full access, can delete org, manage billing
+  ADMIN   // Can invite/remove members, full data access
+  MEMBER  // Can view and add data, cannot manage members
+}
+
+// Invitation tokens for inviting new team members
+model Invitation {
+  id             String       @id @default(cuid())
+  email          String
+  organizationId String
+  role           MemberRole   @default(MEMBER)
+  token          String       @unique
+  expiresAt      DateTime
+  invitedById    String
+  invitedBy      User         @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([email, organizationId])
+}
+
 model Supplier {
   id                String         @id @default(cuid())
   supplierNumber    String
   name              String
-  userId            String
-  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId    String
+  organization      Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rowCount          Int            @default(0)
   totalQuantity     Int            @default(0)
   totalRevenue      Float          @default(0)
@@ -86,13 +135,13 @@ model Supplier {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
-  @@unique([supplierNumber, userId])
+  @@unique([supplierNumber, organizationId])
 }
 
 model CustomFactor {
   id          String   @id @default(cuid())
   supplierId  String
-  userId      String
+  userId      String   // Who added this factor
   factorName  String
   factorValue Float
   weight      Float    @default(1)
@@ -104,11 +153,13 @@ model CustomFactor {
 }
 
 model UploadHistory {
-  id          String   @id @default(cuid())
-  userId      String
-  fileName    String
-  recordCount Int
-  status      String   @default("completed")
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  uploadedAt  DateTime @default(now())
+  id             String       @id @default(cuid())
+  userId         String
+  organizationId String
+  fileName       String
+  recordCount    Int
+  status         String       @default("completed")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedAt     DateTime     @default(now())
 }
