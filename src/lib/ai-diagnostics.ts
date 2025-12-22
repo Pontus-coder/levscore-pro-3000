@@ -37,6 +37,8 @@ export interface SupplierData {
   // Kontext
   tier: string | null
   revenueShare: number
+  // Google Trends data (valfritt)
+  trendsContext?: string
 }
 
 export interface AIAnalysis {
@@ -82,7 +84,13 @@ Score-systemet:
 Tier-systemet:
 - A-tier: Topp 80% av omsättningen (kärnleverantörer)
 - B-tier: Nästa 15% (viktiga men inte dominerande)
-- C-tier: Sista 5% (svans, potentiellt ineffektiva)`
+- C-tier: Sista 5% (svans, potentiellt ineffektiva)
+
+Google Trends-data:
+- Om trenddata inkluderas, använd den för att identifiera växande vs krympande produktkategorier
+- Sökintresse 0-100 där 100 = högsta popularitet under perioden
+- "Stigande" trend = ökande sökningar = ökande efterfrågan
+- Relaterade sökningar kan ge tips om kompletterande produkter`
         },
         {
           role: "user",
@@ -127,7 +135,7 @@ function buildPrompt(supplier: SupplierData): string {
   const marginPct = ((supplier.marginScore / 3) * 100).toFixed(0)
   const totalPct = ((supplier.totalScore / 10) * 100).toFixed(0)
 
-  return `Analysera denna leverantör och ge rekommendationer.
+  let prompt = `Analysera denna leverantör och ge rekommendationer.
 
 **LEVERANTÖR: ${supplier.name}** (Nr: ${supplier.supplierNumber})
 
@@ -145,18 +153,31 @@ function buildPrompt(supplier: SupplierData): string {
 - Margin Score: ${supplier.marginScore}/3 (${marginPct}% av max)
 - **TOTAL: ${supplier.totalScore.toFixed(1)}/10** (${totalPct}%)
 
-🏷️ KLASSIFICERING: ${supplier.tier || "Ej klassificerad"}
+🏷️ KLASSIFICERING: ${supplier.tier || "Ej klassificerad"}`
+
+  // Lägg till trenddata om det finns
+  if (supplier.trendsContext) {
+    prompt += `
+
+${supplier.trendsContext}
+
+OBS: Använd trenddatan för att ge mer specifika rekommendationer! Om en produktkategori har stigande sökintresse, prioritera den högre.`
+  }
+
+  prompt += `
 
 ---
 
 Ge din analys som JSON med exakt detta format:
 {
-  "diagnosis": "2-3 meningar som förklarar VARFÖR leverantören presterar som den gör. Var specifik om vad siffrorna betyder.",
-  "opportunities": "2-3 meningar om VAR de största möjligheterna finns. Koppla till konkreta åtgärder.",
+  "diagnosis": "2-3 meningar som förklarar VARFÖR leverantören presterar som den gör. Var specifik om vad siffrorna betyder.${supplier.trendsContext ? " Inkludera insikter från trenddata." : ""}",
+  "opportunities": "2-3 meningar om VAR de största möjligheterna finns.${supplier.trendsContext ? " Basera på både intern data och söktrender." : ""} Koppla till konkreta åtgärder.",
   "action": "EN konkret, prioriterad rekommendation som börjar med ett verb (t.ex. 'Utöka sortimentet med...')",
   "priority": "high/medium/low baserat på potential och nuvarande position",
-  "confidence": 70-95 beroende på hur tydlig datan är
+  "confidence": ${supplier.trendsContext ? "75-95" : "70-90"} beroende på hur tydlig datan är
 }`
+
+  return prompt
 }
 
 /**

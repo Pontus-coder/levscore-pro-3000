@@ -8,6 +8,7 @@ import { Header } from "@/components/Header"
 import { Card } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
+import { Input } from "@/components/ui/Input"
 import { FactorForm } from "@/components/FactorForm"
 
 interface CustomFactor {
@@ -22,6 +23,16 @@ interface CustomFactor {
     name: string | null
     image: string | null
   }
+}
+
+interface TrendData {
+  keyword: string
+  data: {
+    averageInterest: number
+    trend: "rising" | "stable" | "declining"
+    trendPercent: number
+    relatedQueries: string[]
+  } | null
 }
 
 interface Supplier {
@@ -43,6 +54,7 @@ interface Supplier {
   accumulatedShare: string
   tier: string | null
   profile: string | null
+  keywords: string[]
   customFactors: CustomFactor[]
   adjustedTotalScore: number
 }
@@ -63,9 +75,17 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     action: string
     priority: "high" | "medium" | "low"
     confidence: number
+    trends?: TrendData[]
+    generatedAt?: string
   } | null>(null)
   const [isLoadingAI, setIsLoadingAI] = useState(false)
   const [isAIPowered, setIsAIPowered] = useState(false)
+  const [isCached, setIsCached] = useState(false)
+  
+  // Keywords state
+  const [keywords, setKeywords] = useState<string[]>([])
+  const [newKeyword, setNewKeyword] = useState("")
+  const [isSavingKeywords, setIsSavingKeywords] = useState(false)
 
   const fetchSupplier = useCallback(async () => {
     try {
@@ -77,6 +97,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       }
       
       setSupplier(data)
+      setKeywords(data.keywords || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ett fel uppstod")
     } finally {
@@ -113,12 +134,15 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  const fetchAIAnalysis = async () => {
+  const fetchAIAnalysis = async (forceRefresh = false) => {
     if (!supplier) return
     
     setIsLoadingAI(true)
     try {
-      const response = await fetch(`/api/suppliers/${resolvedParams.id}/ai-analysis`)
+      const url = forceRefresh 
+        ? `/api/suppliers/${resolvedParams.id}/ai-analysis?refresh=true`
+        : `/api/suppliers/${resolvedParams.id}/ai-analysis`
+      const response = await fetch(url)
       const data = await response.json()
       
       if (!response.ok) {
@@ -127,12 +151,46 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       
       setAiAnalysis(data.analysis)
       setIsAIPowered(data.isAIPowered)
+      setIsCached(data.cached || false)
     } catch (err) {
       console.error("AI analysis error:", err)
       alert(err instanceof Error ? err.message : "Ett fel uppstod")
     } finally {
       setIsLoadingAI(false)
     }
+  }
+
+  const saveKeywords = async () => {
+    setIsSavingKeywords(true)
+    try {
+      const response = await fetch(`/api/suppliers/${resolvedParams.id}/trends`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords }),
+      })
+      
+      if (!response.ok) {
+        throw new Error("Kunde inte spara nyckelord")
+      }
+      
+      // Rensa cachad AI-analys när nyckelord ändras
+      setAiAnalysis(null)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Ett fel uppstod")
+    } finally {
+      setIsSavingKeywords(false)
+    }
+  }
+
+  const addKeyword = () => {
+    if (newKeyword.trim() && !keywords.includes(newKeyword.trim().toLowerCase())) {
+      setKeywords([...keywords, newKeyword.trim().toLowerCase()])
+      setNewKeyword("")
+    }
+  }
+
+  const removeKeyword = (keyword: string) => {
+    setKeywords(keywords.filter(k => k !== keyword))
   }
 
   const getPriorityBadge = (priority: "high" | "medium" | "low") => {
@@ -358,6 +416,67 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               </div>
             </Card>
 
+            {/* Keywords for Trends */}
+            <Card variant="glass">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-100">Sökord för trendanalys</h2>
+                  <p className="text-xs text-slate-500">Lägg till sökord för att få Google Trends-data i AI-analysen</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 mb-3">
+                <Input
+                  placeholder="T.ex. 'borrmaskiner', 'verktyg'..."
+                  value={newKeyword}
+                  onChange={(e) => setNewKeyword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addKeyword()}
+                  className="flex-1"
+                />
+                <Button onClick={addKeyword} variant="secondary" size="sm">
+                  Lägg till
+                </Button>
+              </div>
+              
+              {keywords.length > 0 ? (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {keywords.map((keyword) => (
+                    <span
+                      key={keyword}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm"
+                    >
+                      {keyword}
+                      <button
+                        onClick={() => removeKeyword(keyword)}
+                        className="hover:text-red-400 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500 mb-4">Inga sökord ännu. Lägg till för att få marknadsinsikter!</p>
+              )}
+              
+              {keywords.length > 0 && (
+                <Button
+                  onClick={saveKeywords}
+                  disabled={isSavingKeywords}
+                  size="sm"
+                >
+                  {isSavingKeywords ? "Sparar..." : "Spara sökord"}
+                </Button>
+              )}
+            </Card>
+
             {/* AI Analysis */}
             <Card variant="glass" className="relative overflow-hidden">
               <div className="flex items-center justify-between mb-4">
@@ -373,10 +492,20 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                       GPT-4
                     </span>
                   )}
+                  {keywords.length > 0 && (
+                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-xs font-medium">
+                      + Trends
+                    </span>
+                  )}
+                  {isCached && (
+                    <span className="px-2 py-0.5 bg-slate-500/20 text-slate-400 rounded text-xs font-medium">
+                      Cachad
+                    </span>
+                  )}
                 </div>
                 {!aiAnalysis && (
                   <Button
-                    onClick={fetchAIAnalysis}
+                    onClick={() => fetchAIAnalysis(false)}
                     disabled={isLoadingAI}
                     variant="secondary"
                     size="sm"
@@ -384,7 +513,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                     {isLoadingAI ? (
                       <>
                         <div className="w-4 h-4 border-2 border-slate-400/20 border-t-slate-400 rounded-full animate-spin mr-2" />
-                        Analyserar...
+                        {keywords.length > 0 ? "Hämtar trends..." : "Analyserar..."}
                       </>
                     ) : (
                       <>
@@ -400,6 +529,41 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
               {aiAnalysis ? (
                 <div className="space-y-4">
+                  {/* Trends Data */}
+                  {aiAnalysis.trends && aiAnalysis.trends.length > 0 && (
+                    <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                      <h3 className="text-sm font-medium text-blue-400 mb-3 flex items-center gap-2">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                        Google Trends (Sverige, 12 mån)
+                      </h3>
+                      <div className="grid gap-3">
+                        {aiAnalysis.trends.map((trend) => (
+                          <div key={trend.keyword} className="flex items-center justify-between">
+                            <span className="text-slate-300 font-medium">{trend.keyword}</span>
+                            {trend.data ? (
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-slate-500">
+                                  Intresse: {trend.data.averageInterest}/100
+                                </span>
+                                <span className={`text-sm font-bold ${
+                                  trend.data.trend === "rising" ? "text-emerald-400" :
+                                  trend.data.trend === "declining" ? "text-red-400" : "text-slate-400"
+                                }`}>
+                                  {trend.data.trend === "rising" ? "↗" : trend.data.trend === "declining" ? "↘" : "→"}
+                                  {trend.data.trendPercent > 0 ? "+" : ""}{trend.data.trendPercent}%
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-500">Ingen data</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Diagnosis */}
                   <div className="p-4 bg-slate-800/50 rounded-xl">
                     <div className="flex items-center justify-between mb-2">
@@ -431,10 +595,14 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                     <p className="text-slate-200 font-medium">{aiAnalysis.action}</p>
                   </div>
 
-                  {/* Confidence */}
+                  {/* Confidence & metadata */}
                   <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
                     <span>
-                      {isAIPowered ? "Analyserad med GPT-4o-mini" : "Regelbaserad analys"}
+                      {isAIPowered ? "GPT-4o-mini" : "Regelbaserad"} 
+                      {aiAnalysis.trends && aiAnalysis.trends.length > 0 && " + Google Trends"}
+                      {isCached && aiAnalysis.generatedAt && (
+                        <> • Cachad {new Date(aiAnalysis.generatedAt).toLocaleDateString("sv-SE")}</>
+                      )}
                     </span>
                     <span className="flex items-center gap-1">
                       Konfidens: {aiAnalysis.confidence}%
@@ -450,21 +618,25 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                   {/* Regenerate button */}
                   <div className="pt-2 border-t border-slate-700">
                     <button
-                      onClick={fetchAIAnalysis}
+                      onClick={() => fetchAIAnalysis(true)}
                       disabled={isLoadingAI}
                       className="text-sm text-slate-400 hover:text-purple-400 transition-colors flex items-center gap-1"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
-                      Generera ny analys
+                      Generera ny analys (uppdatera)
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-slate-500">
                   <p className="mb-2">Klicka på &quot;Generera analys&quot; för att få en AI-driven analys</p>
-                  <p className="text-xs">Analysen ger djupare insikter om möjligheter och konkreta åtgärder</p>
+                  <p className="text-xs">
+                    {keywords.length > 0 
+                      ? `Analysen kommer inkludera Google Trends-data för: ${keywords.join(", ")}`
+                      : "Lägg till sökord ovan för att få marknadsinsikter i analysen"}
+                  </p>
                 </div>
               )}
             </Card>
