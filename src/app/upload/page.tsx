@@ -20,7 +20,19 @@ interface PreviewData {
   sheetName: string
 }
 
-interface ColumnMapping {
+// Raw article data mapping
+interface RawColumnMapping {
+  articleNumber: string
+  description: string
+  quantity: string
+  supplierNumber: string
+  supplierName: string
+  margin: string
+  revenue: string
+}
+
+// Aggregated supplier data mapping
+interface AggregatedColumnMapping {
   supplierNumber: string
   name: string
   rowCount: string
@@ -40,7 +52,19 @@ interface ColumnMapping {
   profile: string
 }
 
-const FIELD_LABELS: Record<keyof ColumnMapping, { label: string; required: boolean; description: string }> = {
+type ImportMode = "raw" | "aggregated"
+
+const RAW_FIELD_LABELS: Record<keyof RawColumnMapping, { label: string; required: boolean; description: string }> = {
+  articleNumber: { label: "Artikelnummer", required: false, description: "Unikt ID för artikeln" },
+  description: { label: "Benämning", required: false, description: "Artikelns namn/beskrivning" },
+  quantity: { label: "Antal", required: false, description: "Antal sålda" },
+  supplierNumber: { label: "Lev.nummer", required: true, description: "Leverantörsnummer" },
+  supplierName: { label: "Lev.namn", required: true, description: "Leverantörens namn" },
+  margin: { label: "TG", required: false, description: "Täckningsgrad i %" },
+  revenue: { label: "Belopp", required: true, description: "Försäljningsbelopp i SEK" },
+}
+
+const AGGREGATED_FIELD_LABELS: Record<keyof AggregatedColumnMapping, { label: string; required: boolean; description: string }> = {
   supplierNumber: { label: "Leverantörsnummer", required: true, description: "Unikt ID för leverantören" },
   name: { label: "Leverantör", required: true, description: "Namn på leverantören" },
   rowCount: { label: "Antal rader", required: false, description: "Antal orderrader" },
@@ -56,39 +80,59 @@ const FIELD_LABELS: Record<keyof ColumnMapping, { label: string; required: boole
   shortAction: { label: "Kort handling", required: false, description: "Rekommenderad åtgärd" },
   revenueShare: { label: "Andel av total omsättning", required: false, description: "Procentandel" },
   accumulatedShare: { label: "Ackumulerad andel", required: false, description: "Ackumulerad procentandel" },
-  tier: { label: "Leverantörstier", required: false, description: "A, B, C, D eller F" },
+  tier: { label: "Leverantörstier", required: false, description: "A, B, C-tier" },
   profile: { label: "Leverantörsprofil", required: false, description: "Beskrivning av profil" },
+}
+
+const emptyRawMapping: RawColumnMapping = {
+  articleNumber: "",
+  description: "",
+  quantity: "",
+  supplierNumber: "",
+  supplierName: "",
+  margin: "",
+  revenue: "",
+}
+
+const emptyAggregatedMapping: AggregatedColumnMapping = {
+  supplierNumber: "",
+  name: "",
+  rowCount: "",
+  totalQuantity: "",
+  totalRevenue: "",
+  avgMargin: "",
+  salesScore: "",
+  assortmentScore: "",
+  efficiencyScore: "",
+  marginScore: "",
+  totalScore: "",
+  diagnosis: "",
+  shortAction: "",
+  revenueShare: "",
+  accumulatedShare: "",
+  tier: "",
+  profile: "",
 }
 
 export default function UploadPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   
-  const [step, setStep] = useState<"upload" | "mapping" | "importing">("upload")
+  const [step, setStep] = useState<"mode" | "upload" | "mapping" | "importing">("mode")
+  const [importMode, setImportMode] = useState<ImportMode | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PreviewData | null>(null)
-  const [mapping, setMapping] = useState<ColumnMapping>({
-    supplierNumber: "",
-    name: "",
-    rowCount: "",
-    totalQuantity: "",
-    totalRevenue: "",
-    avgMargin: "",
-    salesScore: "",
-    assortmentScore: "",
-    efficiencyScore: "",
-    marginScore: "",
-    totalScore: "",
-    diagnosis: "",
-    shortAction: "",
-    revenueShare: "",
-    accumulatedShare: "",
-    tier: "",
-    profile: "",
-  })
+  const [rawMapping, setRawMapping] = useState<RawColumnMapping>(emptyRawMapping)
+  const [aggregatedMapping, setAggregatedMapping] = useState<AggregatedColumnMapping>(emptyAggregatedMapping)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [importStats, setImportStats] = useState<{
+    articlesProcessed?: number
+    suppliersCreated: number
+    suppliersUpdated: number
+    totalSuppliers: number
+  } | null>(null)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -97,11 +141,38 @@ export default function UploadPage() {
   }, [status, router])
 
   // Auto-map columns based on common names
-  const autoMapColumns = (headers: ColumnHeader[]) => {
-    const newMapping = { ...mapping }
+  const autoMapRawColumns = (headers: ColumnHeader[]) => {
+    const newMapping = { ...emptyRawMapping }
     const headerNames = headers.map(h => h.name.toLowerCase())
     
-    const autoMappings: Record<keyof ColumnMapping, string[]> = {
+    const autoMappings: Record<keyof RawColumnMapping, string[]> = {
+      articleNumber: ["artikelnummer", "artikelnr", "article", "artnr", "art.nr"],
+      description: ["benämning", "beskrivning", "description", "namn", "artikelnamn", "name"],
+      quantity: ["antal", "quantity", "qty", "st", "styck"],
+      supplierNumber: ["lev.nummer", "levnummer", "lev.nr", "leverantörsnummer", "leverantörnummer", "supplier number"],
+      supplierName: ["lev.namn", "levnamn", "leverantör", "supplier", "leverantörsnamn"],
+      margin: ["tg", "tg%", "marginal", "margin", "täckningsgrad", "täckning"],
+      revenue: ["belopp", "omsättning", "revenue", "summa", "försäljning", "amount"],
+    }
+    
+    for (const [field, alternatives] of Object.entries(autoMappings)) {
+      for (const alt of alternatives) {
+        const matchIndex = headerNames.findIndex(h => h.includes(alt) || alt.includes(h))
+        if (matchIndex !== -1) {
+          newMapping[field as keyof RawColumnMapping] = headers[matchIndex].name
+          break
+        }
+      }
+    }
+    
+    setRawMapping(newMapping)
+  }
+
+  const autoMapAggregatedColumns = (headers: ColumnHeader[]) => {
+    const newMapping = { ...emptyAggregatedMapping }
+    const headerNames = headers.map(h => h.name.toLowerCase())
+    
+    const autoMappings: Record<keyof AggregatedColumnMapping, string[]> = {
       supplierNumber: ["leverantörsnummer", "leverantörnummer", "suppliernumber", "levnr", "supplier number"],
       name: ["leverantör", "supplier", "name", "namn", "leverantörsnamn"],
       rowCount: ["antal rader", "antal_rader", "rowcount", "rows"],
@@ -125,13 +196,13 @@ export default function UploadPage() {
       for (const alt of alternatives) {
         const matchIndex = headerNames.findIndex(h => h.includes(alt) || alt.includes(h))
         if (matchIndex !== -1) {
-          newMapping[field as keyof ColumnMapping] = headers[matchIndex].name
+          newMapping[field as keyof AggregatedColumnMapping] = headers[matchIndex].name
           break
         }
       }
     }
     
-    setMapping(newMapping)
+    setAggregatedMapping(newMapping)
   }
 
   const handleFileSelect = async (selectedFile: File) => {
@@ -155,7 +226,13 @@ export default function UploadPage() {
       }
 
       setPreview(data)
-      autoMapColumns(data.headers)
+      
+      if (importMode === "raw") {
+        autoMapRawColumns(data.headers)
+      } else {
+        autoMapAggregatedColumns(data.headers)
+      }
+      
       setStep("mapping")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ett fel uppstod")
@@ -165,9 +242,21 @@ export default function UploadPage() {
   }
 
   const handleImport = async () => {
-    if (!file || !mapping.supplierNumber || !mapping.name) {
-      setError("Leverantörsnummer och Leverantör måste mappas")
+    if (!file) {
+      setError("Ingen fil vald")
       return
+    }
+
+    if (importMode === "raw") {
+      if (!rawMapping.supplierNumber || !rawMapping.supplierName || !rawMapping.revenue) {
+        setError("Leverantörsnummer, Leverantörsnamn och Belopp måste mappas")
+        return
+      }
+    } else {
+      if (!aggregatedMapping.supplierNumber || !aggregatedMapping.name) {
+        setError("Leverantörsnummer och Leverantör måste mappas")
+        return
+      }
     }
 
     setIsLoading(true)
@@ -177,9 +266,11 @@ export default function UploadPage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
-      formData.append("mapping", JSON.stringify(mapping))
+      formData.append("mapping", JSON.stringify(importMode === "raw" ? rawMapping : aggregatedMapping))
 
-      const response = await fetch("/api/upload/import", {
+      const endpoint = importMode === "raw" ? "/api/upload/raw" : "/api/upload/import"
+      
+      const response = await fetch(endpoint, {
         method: "POST",
         body: formData,
       })
@@ -191,7 +282,7 @@ export default function UploadPage() {
       }
 
       setSuccess(data.message)
-      setTimeout(() => router.push("/dashboard"), 2000)
+      setImportStats(data.stats)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ett fel uppstod")
       setStep("mapping")
@@ -208,6 +299,18 @@ export default function UploadPage() {
     }
   }
 
+  const resetUpload = () => {
+    setStep("mode")
+    setImportMode(null)
+    setFile(null)
+    setPreview(null)
+    setRawMapping(emptyRawMapping)
+    setAggregatedMapping(emptyAggregatedMapping)
+    setError(null)
+    setSuccess(null)
+    setImportStats(null)
+  }
+
   if (status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -220,6 +323,9 @@ export default function UploadPage() {
     return null
   }
 
+  const currentStep = step === "mode" ? 0 : step === "upload" ? 1 : step === "mapping" ? 2 : 3
+  const steps = ["Välj typ", "Välj fil", "Mappa kolumner", "Importera"]
+
   return (
     <div className="min-h-screen">
       <Header />
@@ -231,21 +337,18 @@ export default function UploadPage() {
         </div>
 
         {/* Progress Steps */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className={`flex items-center gap-2 ${step === "upload" ? "text-emerald-400" : "text-slate-500"}`}>
-            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === "upload" ? "bg-emerald-500 text-white" : "bg-slate-700"}`}>1</span>
-            <span className="hidden sm:inline">Välj fil</span>
-          </div>
-          <div className="flex-1 h-px bg-slate-700" />
-          <div className={`flex items-center gap-2 ${step === "mapping" ? "text-emerald-400" : "text-slate-500"}`}>
-            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === "mapping" ? "bg-emerald-500 text-white" : "bg-slate-700"}`}>2</span>
-            <span className="hidden sm:inline">Mappa kolumner</span>
-          </div>
-          <div className="flex-1 h-px bg-slate-700" />
-          <div className={`flex items-center gap-2 ${step === "importing" ? "text-emerald-400" : "text-slate-500"}`}>
-            <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step === "importing" ? "bg-emerald-500 text-white" : "bg-slate-700"}`}>3</span>
-            <span className="hidden sm:inline">Importera</span>
-          </div>
+        <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
+          {steps.map((label, i) => (
+            <div key={label} className="flex items-center">
+              <div className={`flex items-center gap-2 whitespace-nowrap ${i <= currentStep ? "text-emerald-400" : "text-slate-500"}`}>
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${i <= currentStep ? "bg-emerald-500 text-white" : "bg-slate-700"}`}>
+                  {i + 1}
+                </span>
+                <span className="hidden sm:inline text-sm">{label}</span>
+              </div>
+              {i < steps.length - 1 && <div className="w-8 h-px bg-slate-700 mx-2" />}
+            </div>
+          ))}
         </div>
 
         {error && (
@@ -254,48 +357,162 @@ export default function UploadPage() {
           </div>
         )}
 
-        {success && (
-          <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
-            <p className="text-emerald-400">{success}</p>
+        {success && importStats && (
+          <div className="mb-6 space-y-4">
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
+              <p className="text-emerald-400 font-medium">{success}</p>
+            </div>
+            <Card variant="glass">
+              <h3 className="font-semibold text-slate-100 mb-4">Import-statistik</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {importStats.articlesProcessed !== undefined && (
+                  <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+                    <p className="text-2xl font-bold text-emerald-400">{importStats.articlesProcessed}</p>
+                    <p className="text-sm text-slate-400">Artiklar</p>
+                  </div>
+                )}
+                <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+                  <p className="text-2xl font-bold text-emerald-400">{importStats.totalSuppliers}</p>
+                  <p className="text-sm text-slate-400">Leverantörer</p>
+                </div>
+                <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+                  <p className="text-2xl font-bold text-blue-400">{importStats.suppliersCreated}</p>
+                  <p className="text-sm text-slate-400">Nya</p>
+                </div>
+                <div className="text-center p-4 bg-slate-800/50 rounded-lg">
+                  <p className="text-2xl font-bold text-amber-400">{importStats.suppliersUpdated}</p>
+                  <p className="text-sm text-slate-400">Uppdaterade</p>
+                </div>
+              </div>
+              <div className="mt-6 flex gap-4">
+                <Button onClick={() => router.push("/dashboard")}>Gå till Dashboard</Button>
+                <Button variant="secondary" onClick={resetUpload}>Ladda upp mer</Button>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Step 0: Choose Mode */}
+        {step === "mode" && (
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card 
+              variant="glass" 
+              className="cursor-pointer hover:border-emerald-500/50 transition-all hover:scale-[1.02]"
+              onClick={() => { setImportMode("raw"); setStep("upload"); }}
+            >
+              <div className="text-center py-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/20 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-slate-100 mb-2">Rådata (Artikelnivå)</h3>
+                <p className="text-slate-400 mb-4">
+                  Ladda upp artikeldata direkt. Systemet aggregerar och beräknar alla scores automatiskt.
+                </p>
+                <div className="text-left bg-slate-800/50 rounded-lg p-4">
+                  <p className="text-xs text-slate-500 mb-2 font-medium">Kolumner som behövs:</p>
+                  <ul className="text-xs text-slate-400 space-y-1">
+                    <li>• <span className="text-emerald-400">Lev.nummer*</span></li>
+                    <li>• <span className="text-emerald-400">Lev.namn*</span></li>
+                    <li>• <span className="text-emerald-400">Belopp*</span></li>
+                    <li>• Artikelnummer</li>
+                    <li>• Benämning</li>
+                    <li>• Antal</li>
+                    <li>• TG</li>
+                  </ul>
+                </div>
+                <p className="text-emerald-400 font-medium mt-4">✨ Rekommenderad</p>
+              </div>
+            </Card>
+
+            <Card 
+              variant="glass" 
+              className="cursor-pointer hover:border-slate-500/50 transition-all hover:scale-[1.02]"
+              onClick={() => { setImportMode("aggregated"); setStep("upload"); }}
+            >
+              <div className="text-center py-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-700 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-slate-100 mb-2">Förberäknad data</h3>
+                <p className="text-slate-400 mb-4">
+                  Ladda upp data som redan är aggregerad per leverantör med uträknade scores.
+                </p>
+                <div className="text-left bg-slate-800/50 rounded-lg p-4">
+                  <p className="text-xs text-slate-500 mb-2 font-medium">Kolumner som behövs:</p>
+                  <ul className="text-xs text-slate-400 space-y-1">
+                    <li>• <span className="text-emerald-400">Leverantörsnummer*</span></li>
+                    <li>• <span className="text-emerald-400">Leverantör*</span></li>
+                    <li>• Scores (beräknas om saknas)</li>
+                    <li>• Diagnos, Åtgärd, Tier...</li>
+                  </ul>
+                </div>
+                <p className="text-slate-500 font-medium mt-4">För avancerade användare</p>
+              </div>
+            </Card>
           </div>
         )}
 
         {/* Step 1: Upload */}
         {step === "upload" && (
-          <Card variant="glass">
-            <div
-              className="border-2 border-dashed rounded-xl p-12 text-center cursor-pointer hover:border-emerald-500/50 transition-colors"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              onClick={() => document.getElementById("file-input")?.click()}
-            >
-              <input
-                id="file-input"
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
-                className="hidden"
-              />
-              
-              {isLoading ? (
-                <div className="flex flex-col items-center">
-                  <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
-                  <p className="text-slate-300">Läser fil...</p>
+          <div className="space-y-6">
+            <Card variant="glass">
+              <div className="flex items-center gap-4 mb-4">
+                <button 
+                  onClick={() => setStep("mode")} 
+                  className="text-slate-400 hover:text-slate-100 transition-colors"
+                >
+                  ← Tillbaka
+                </button>
+                <div>
+                  <h3 className="font-semibold text-slate-100">
+                    {importMode === "raw" ? "Rådata (Artikelnivå)" : "Förberäknad data"}
+                  </h3>
+                  <p className="text-sm text-slate-400">
+                    {importMode === "raw" 
+                      ? "Systemet aggregerar och beräknar alla scores automatiskt"
+                      : "Ladda upp förberäknad leverantörsdata"}
+                  </p>
                 </div>
-              ) : (
-                <>
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-800 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
+              </div>
+              
+              <div
+                className="border-2 border-dashed rounded-xl p-12 text-center cursor-pointer hover:border-emerald-500/50 transition-colors"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById("file-input")?.click()}
+              >
+                <input
+                  id="file-input"
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])}
+                  className="hidden"
+                />
+                
+                {isLoading ? (
+                  <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
+                    <p className="text-slate-300">Läser fil...</p>
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-100 mb-1">Släpp din Excel-fil här</h3>
-                  <p className="text-sm text-slate-400 mb-4">eller klicka för att välja fil</p>
-                  <p className="text-xs text-slate-500">Stödjer .xlsx, .xls och .csv</p>
-                </>
-              )}
-            </div>
-          </Card>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-800 flex items-center justify-center">
+                      <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-100 mb-1">Släpp din Excel-fil här</h3>
+                    <p className="text-sm text-slate-400 mb-4">eller klicka för att välja fil</p>
+                    <p className="text-xs text-slate-500">Stödjer .xlsx, .xls och .csv</p>
+                  </>
+                )}
+              </div>
+            </Card>
+          </div>
         )}
 
         {/* Step 2: Mapping */}
@@ -305,7 +522,10 @@ export default function UploadPage() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="font-semibold text-slate-100">{preview.filename}</h3>
-                  <p className="text-sm text-slate-400">{preview.rowCount} rader hittades</p>
+                  <p className="text-sm text-slate-400">
+                    {preview.rowCount} rader hittades 
+                    {importMode === "raw" && " (kommer aggregeras per leverantör)"}
+                  </p>
                 </div>
                 <Button variant="ghost" onClick={() => { setStep("upload"); setFile(null); setPreview(null); }}>
                   Byt fil
@@ -315,36 +535,86 @@ export default function UploadPage() {
 
             <Card variant="glass">
               <h3 className="font-semibold text-slate-100 mb-4">Mappa kolumner</h3>
-              <p className="text-sm text-slate-400 mb-6">Välj vilken kolumn i din fil som motsvarar varje fält. Obligatoriska fält är markerade med *</p>
+              <p className="text-sm text-slate-400 mb-6">
+                Välj vilken kolumn i din fil som motsvarar varje fält. Obligatoriska fält är markerade med *
+              </p>
               
-              <div className="grid gap-4">
-                {(Object.entries(FIELD_LABELS) as [keyof ColumnMapping, typeof FIELD_LABELS[keyof ColumnMapping]][]).map(([field, config]) => (
-                  <div key={field} className="grid sm:grid-cols-3 gap-2 items-center">
-                    <div>
-                      <label className="text-sm font-medium text-slate-300">
-                        {config.label}
-                        {config.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <p className="text-xs text-slate-500">{config.description}</p>
+              {importMode === "raw" ? (
+                <div className="grid gap-4">
+                  {(Object.entries(RAW_FIELD_LABELS) as [keyof RawColumnMapping, typeof RAW_FIELD_LABELS[keyof RawColumnMapping]][]).map(([field, config]) => (
+                    <div key={field} className="grid sm:grid-cols-3 gap-2 items-center">
+                      <div>
+                        <label className="text-sm font-medium text-slate-300">
+                          {config.label}
+                          {config.required && <span className="text-red-400 ml-1">*</span>}
+                        </label>
+                        <p className="text-xs text-slate-500">{config.description}</p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <select
+                          value={rawMapping[field]}
+                          onChange={(e) => setRawMapping({ ...rawMapping, [field]: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                        >
+                          <option value="">-- Välj kolumn --</option>
+                          {preview.headers.map((header) => (
+                            <option key={header.index} value={header.name}>
+                              {header.name} {header.preview[0] && `(ex: ${header.preview[0]})`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <div className="sm:col-span-2">
-                      <select
-                        value={mapping[field]}
-                        onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
-                        className="w-full px-4 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
-                      >
-                        <option value="">-- Välj kolumn --</option>
-                        {preview.headers.map((header) => (
-                          <option key={header.index} value={header.name}>
-                            {header.name} {header.preview[0] && `(ex: ${header.preview[0]})`}
-                          </option>
-                        ))}
-                      </select>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {(Object.entries(AGGREGATED_FIELD_LABELS) as [keyof AggregatedColumnMapping, typeof AGGREGATED_FIELD_LABELS[keyof AggregatedColumnMapping]][]).map(([field, config]) => (
+                    <div key={field} className="grid sm:grid-cols-3 gap-2 items-center">
+                      <div>
+                        <label className="text-sm font-medium text-slate-300">
+                          {config.label}
+                          {config.required && <span className="text-red-400 ml-1">*</span>}
+                        </label>
+                        <p className="text-xs text-slate-500">{config.description}</p>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <select
+                          value={aggregatedMapping[field]}
+                          onChange={(e) => setAggregatedMapping({ ...aggregatedMapping, [field]: e.target.value })}
+                          className="w-full px-4 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
+                        >
+                          <option value="">-- Välj kolumn --</option>
+                          {preview.headers.map((header) => (
+                            <option key={header.index} value={header.name}>
+                              {header.name} {header.preview[0] && `(ex: ${header.preview[0]})`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </Card>
+
+            {importMode === "raw" && (
+              <Card variant="glass" className="bg-emerald-500/5 border-emerald-500/20">
+                <h4 className="font-medium text-emerald-400 mb-2">🧮 Automatisk beräkning</h4>
+                <p className="text-sm text-slate-400">
+                  När du importerar rådata beräknar systemet automatiskt:
+                </p>
+                <ul className="text-sm text-slate-400 mt-2 space-y-1 ml-4">
+                  <li>• Sales Score (baserat på omsättning)</li>
+                  <li>• Sortimentsbredd Score (baserat på antal artikelrader)</li>
+                  <li>• Efficiency Score (omsättning per artikel)</li>
+                  <li>• Margin Score (baserat på TG)</li>
+                  <li>• Total Score (summa av alla scores)</li>
+                  <li>• Diagnos och rekommenderad åtgärd</li>
+                  <li>• Tier-klassificering (A, B, C)</li>
+                </ul>
+              </Card>
+            )}
 
             <div className="flex justify-end gap-4">
               <Button variant="secondary" onClick={() => { setStep("upload"); setFile(null); setPreview(null); }}>
@@ -352,23 +622,35 @@ export default function UploadPage() {
               </Button>
               <Button 
                 onClick={handleImport}
-                disabled={!mapping.supplierNumber || !mapping.name}
+                disabled={
+                  importMode === "raw" 
+                    ? (!rawMapping.supplierNumber || !rawMapping.supplierName || !rawMapping.revenue)
+                    : (!aggregatedMapping.supplierNumber || !aggregatedMapping.name)
+                }
               >
-                Importera {preview.rowCount} leverantörer
+                {importMode === "raw" 
+                  ? `Beräkna & Importera ${preview.rowCount} rader`
+                  : `Importera ${preview.rowCount} leverantörer`}
               </Button>
             </div>
           </div>
         )}
 
         {/* Step 3: Importing */}
-        {step === "importing" && (
+        {step === "importing" && !success && (
           <Card variant="glass">
             <div className="text-center py-12">
               <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/20 flex items-center justify-center">
                 <div className="w-8 h-8 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
               </div>
-              <h3 className="text-lg font-semibold text-slate-100 mb-2">Importerar...</h3>
-              <p className="text-slate-400">Vänta medan leverantörerna läggs till i databasen</p>
+              <h3 className="text-lg font-semibold text-slate-100 mb-2">
+                {importMode === "raw" ? "Beräknar och importerar..." : "Importerar..."}
+              </h3>
+              <p className="text-slate-400">
+                {importMode === "raw" 
+                  ? "Aggregerar data och beräknar scores för alla leverantörer"
+                  : "Vänta medan leverantörerna läggs till i databasen"}
+              </p>
             </div>
           </Card>
         )}

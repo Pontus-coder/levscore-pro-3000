@@ -46,6 +46,7 @@ model User {
   image         String?
   accounts      Account[]
   sessions      Session[]
+  suppliers     Supplier[]
   customFactors CustomFactor[]
   uploads       UploadHistory[]
   createdAt     DateTime       @default(now())
@@ -62,26 +63,30 @@ model VerificationToken {
 
 model Supplier {
   id                String         @id @default(cuid())
-  supplierNumber    String         @unique
+  supplierNumber    String
   name              String
+  userId            String
+  user              User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   rowCount          Int            @default(0)
   totalQuantity     Int            @default(0)
-  totalRevenue      Decimal        @default(0) @db.Decimal(15, 2)
-  avgMargin         Decimal        @default(0) @db.Decimal(5, 2)
-  salesScore        Decimal        @default(0) @db.Decimal(5, 2)
-  assortmentScore   Decimal        @default(0) @db.Decimal(5, 2)
-  efficiencyScore   Decimal        @default(0) @db.Decimal(5, 2)
-  marginScore       Decimal        @default(0) @db.Decimal(5, 2)
-  totalScore        Decimal        @default(0) @db.Decimal(5, 2)
+  totalRevenue      Float          @default(0)
+  avgMargin         Float          @default(0)
+  salesScore        Float          @default(0)
+  assortmentScore   Float          @default(0)
+  efficiencyScore   Float          @default(0)
+  marginScore       Float          @default(0)
+  totalScore        Float          @default(0)
   diagnosis         String?        @db.Text
-  shortAction       String?
-  revenueShare      Decimal        @default(0) @db.Decimal(5, 4)
-  accumulatedShare  Decimal        @default(0) @db.Decimal(5, 4)
+  shortAction       String?        @db.Text
+  revenueShare      Float          @default(0)
+  accumulatedShare  Float          @default(0)
   tier              String?
-  profile           String?
+  profile           String?        @db.Text
   customFactors     CustomFactor[]
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+
+  @@unique([supplierNumber, userId])
 }
 
 model CustomFactor {
@@ -89,8 +94,8 @@ model CustomFactor {
   supplierId  String
   userId      String
   factorName  String
-  factorValue Decimal  @db.Decimal(5, 2)
-  weight      Decimal  @default(1) @db.Decimal(3, 2)
+  factorValue Float
+  weight      Float    @default(1)
   comment     String?  @db.Text
   supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -99,10 +104,11 @@ model CustomFactor {
 }
 
 model UploadHistory {
-  id            String   @id @default(cuid())
-  userId        String
-  filename      String
-  supplierCount Int
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  uploadedAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String
+  fileName    String
+  recordCount Int
+  status      String   @default("completed")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uploadedAt  DateTime @default(now())
 }
