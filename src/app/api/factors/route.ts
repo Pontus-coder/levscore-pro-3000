@@ -5,9 +5,9 @@ import { getOrganizationContext } from "@/lib/organization"
 // Input validation constants
 const MAX_FACTOR_NAME_LENGTH = 100
 const MAX_COMMENT_LENGTH = 1000
-const MAX_FACTOR_VALUE = 100
-const MIN_FACTOR_VALUE = -100
-const MAX_WEIGHT = 10
+const MAX_FACTOR_VALUE = 3    // Max +3 poäng (Total score är max 10)
+const MIN_FACTOR_VALUE = -3   // Max -3 poäng
+const MAX_WEIGHT = 1
 const MIN_WEIGHT = 0
 
 export async function POST(request: NextRequest) {

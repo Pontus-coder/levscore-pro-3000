@@ -96,19 +96,19 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
       {showHelp && (
         <div className="mb-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700 text-sm">
           <p className="text-slate-300 mb-3">
-            Egna faktorer justerar leverantörens totalpoäng baserat på information som inte finns i importerad data.
+            Egna faktorer justerar leverantörens totalpoäng (max 10) baserat på information som inte finns i importerad data.
           </p>
           
           <div className="space-y-3">
             <div>
-              <p className="font-medium text-emerald-400 mb-1">Poäng = VAD du vill säga</p>
+              <p className="font-medium text-emerald-400 mb-1">Poäng (-3 till +3) = VAD du vill säga</p>
               <p className="text-slate-400">
                 Positiv (+) = något bra, höjer scoren. Negativ (-) = något dåligt, sänker scoren.
               </p>
             </div>
             
             <div>
-              <p className="font-medium text-emerald-400 mb-1">Vikt = HUR SÄKER du är</p>
+              <p className="font-medium text-emerald-400 mb-1">Vikt (0-1) = HUR SÄKER du är</p>
               <p className="text-slate-400">
                 1.0 = fakta, 100% säker. 0.5 = ganska säker. 0.2 = osäker/rykten.
               </p>
@@ -118,22 +118,28 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
               <p className="font-medium text-slate-300 mb-2">Exempel:</p>
               <div className="grid gap-1.5 text-xs">
                 <div className="flex justify-between text-slate-400">
-                  <span>Bra partner, bekräftad</span>
-                  <span className="text-emerald-400">+5 × 1.0 = <strong>+5.0</strong></span>
+                  <span>Fantastisk partner, bekräftad</span>
+                  <span className="text-emerald-400">+3 × 1.0 = <strong>+3.0</strong></span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>Bra partner, nya för oss</span>
-                  <span className="text-amber-400">+5 × 0.5 = <strong>+2.5</strong></span>
+                  <span className="text-emerald-400">+2 × 0.5 = <strong>+1.0</strong></span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>Leveransproblem ibland</span>
-                  <span className="text-red-400">-3 × 0.7 = <strong>-2.1</strong></span>
+                  <span className="text-red-400">-2 × 0.7 = <strong>-1.4</strong></span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>Hört rykten om problem</span>
-                  <span className="text-orange-400">-3 × 0.2 = <strong>-0.6</strong></span>
+                  <span className="text-orange-400">-1 × 0.3 = <strong>-0.3</strong></span>
                 </div>
               </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-700">
+              <p className="text-xs text-slate-500">
+                💡 Total score är max 10. En faktor på ±3 kan alltså ändra scoren med upp till 30%.
+              </p>
             </div>
           </div>
         </div>
@@ -151,10 +157,11 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Input
-              label="Poäng"
+              label="Poäng (-3 till +3)"
               type="number"
-              min="-100"
-              max="100"
+              min="-3"
+              max="3"
+              step="0.5"
               placeholder="0"
               value={formData.factorValue}
               onChange={(e) => setFormData({ ...formData, factorValue: e.target.value })}
@@ -165,7 +172,7 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
           
           <div>
             <Input
-              label="Vikt"
+              label="Vikt (0-1)"
               type="number"
               min="0"
               max="1"
@@ -174,7 +181,7 @@ export function FactorForm({ supplierId, onSuccess }: FactorFormProps) {
               value={formData.weight}
               onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
             />
-            <p className="text-xs text-slate-500 mt-1">1.0 = säker, 0.5 = osäker</p>
+            <p className="text-xs text-slate-500 mt-1">1 = säker, 0.5 = osäker</p>
           </div>
         </div>
         
