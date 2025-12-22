@@ -20,25 +20,30 @@ export interface SupplierData {
   profile: string | null
 }
 
-// Column mappings from Swedish Excel headers to our data model
-const COLUMN_MAPPINGS: Record<string, keyof SupplierData> = {
-  'Leverantörsnummer': 'supplierNumber',
-  'Leverantör': 'name',
-  'Antal rader': 'rowCount',
-  'Totalt antal': 'totalQuantity',
-  'Total omsättning': 'totalRevenue',
-  'Snitt-TG (%)': 'avgMargin',
-  'Sales_score': 'salesScore',
-  'Sortimentsbredd score': 'assortmentScore',
-  'Efficiency_score': 'efficiencyScore',
-  'Margin_score': 'marginScore',
-  'Total_score': 'totalScore',
-  'Diagnos (varför)': 'diagnosis',
-  'Kort handling': 'shortAction',
-  'Andel av total omsättning': 'revenueShare',
-  'Ackumulerad andel': 'accumulatedShare',
-  'Leverantörstier': 'tier',
-  'Leverantörsprofil (valfri, men kraftfull)': 'profile',
+// Normalize header names - remove BOM, trim whitespace, normalize unicode
+function normalizeHeader(header: string): string {
+  return String(header)
+    .replace(/^\uFEFF/, '') // Remove BOM
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width characters
+    .trim()
+    .toLowerCase()
+}
+
+// Find column value by trying multiple possible names
+function findColumnValue(row: Record<string, unknown>, possibleNames: string[]): unknown {
+  for (const name of possibleNames) {
+    // Try exact match first
+    if (row[name] !== undefined) return row[name]
+    
+    // Try normalized match
+    const normalizedName = normalizeHeader(name)
+    for (const key of Object.keys(row)) {
+      if (normalizeHeader(key) === normalizedName) {
+        return row[key]
+      }
+    }
+  }
+  return undefined
 }
 
 function parseNumericValue(value: unknown): number {
@@ -50,6 +55,7 @@ function parseNumericValue(value: unknown): number {
     .replace(/\s/g, '')
     .replace(',', '.')
     .replace('%', '')
+    .replace(/[^\d.-]/g, '') // Remove any non-numeric characters
   
   const parsed = parseFloat(strValue)
   return isNaN(parsed) ? 0 : parsed
@@ -79,11 +85,11 @@ export function parseExcelFile(buffer: ArrayBuffer): SupplierData[] {
     
     // Try to find supplier number with different possible column names
     const supplierNumber = parseStringValue(
-      rowObj['Leverantörsnummer'] ?? rowObj['Leverantörnummer'] ?? rowObj['SupplierNumber']
+      findColumnValue(rowObj, ['Leverantörsnummer', 'Leverantörnummer', 'SupplierNumber', 'Supplier Number', 'LevNr'])
     )
     
     const supplierName = parseStringValue(
-      rowObj['Leverantör'] ?? rowObj['Supplier'] ?? rowObj['Name']
+      findColumnValue(rowObj, ['Leverantör', 'Supplier', 'Name', 'Namn', 'Leverantörsnamn'])
     )
     
     // Skip rows without supplier number or name
@@ -92,34 +98,34 @@ export function parseExcelFile(buffer: ArrayBuffer): SupplierData[] {
     const supplier: SupplierData = {
       supplierNumber,
       name: supplierName,
-      rowCount: parseNumericValue(rowObj['Antal rader']),
-      totalQuantity: parseNumericValue(rowObj['Totalt antal']),
-      totalRevenue: parseNumericValue(rowObj['Total omsättning']),
-      avgMargin: parseNumericValue(rowObj['Snitt-TG (%)']),
-      salesScore: parseNumericValue(rowObj['Sales_score']),
-      assortmentScore: parseNumericValue(rowObj['Sortimentsbredd score']),
-      efficiencyScore: parseNumericValue(rowObj['Efficiency_score']),
-      marginScore: parseNumericValue(rowObj['Margin_score']),
-      totalScore: parseNumericValue(rowObj['Total_score']),
-      diagnosis: parseStringValue(rowObj['Diagnos (varför)']),
-      shortAction: parseStringValue(rowObj['Kort handling']),
-      revenueShare: parseNumericValue(rowObj['Andel av total omsättning']),
-      accumulatedShare: parseNumericValue(rowObj['Ackumulerad andel']),
-      tier: parseStringValue(rowObj['Leverantörstier']),
-      profile: parseStringValue(rowObj['Leverantörsprofil (valfri, men kraftfull)']),
+      rowCount: parseNumericValue(findColumnValue(rowObj, ['Antal rader', 'Antal_rader', 'RowCount'])),
+      totalQuantity: parseNumericValue(findColumnValue(rowObj, ['Totalt antal', 'Totalt_antal', 'TotalQuantity'])),
+      totalRevenue: parseNumericValue(findColumnValue(rowObj, ['Total omsättning', 'Total_omsättning', 'TotalRevenue', 'Omsättning'])),
+      avgMargin: parseNumericValue(findColumnValue(rowObj, ['Snitt-TG (%)', 'Snitt-TG', 'AvgMargin', 'TG', 'Täckningsgrad'])),
+      salesScore: parseNumericValue(findColumnValue(rowObj, ['Sales_score', 'Sales score', 'SalesScore'])),
+      assortmentScore: parseNumericValue(findColumnValue(rowObj, ['Sortimentsbredd score', 'Sortimentsbredd_score', 'AssortmentScore'])),
+      efficiencyScore: parseNumericValue(findColumnValue(rowObj, ['Efficiency_score', 'Efficiency score', 'EfficiencyScore'])),
+      marginScore: parseNumericValue(findColumnValue(rowObj, ['Margin_score', 'Margin score', 'MarginScore'])),
+      totalScore: parseNumericValue(findColumnValue(rowObj, ['Total_score', 'Total score', 'TotalScore'])),
+      diagnosis: parseStringValue(findColumnValue(rowObj, ['Diagnos (varför)', 'Diagnos', 'Diagnosis'])),
+      shortAction: parseStringValue(findColumnValue(rowObj, ['Kort handling', 'Kort_handling', 'ShortAction', 'Handling'])),
+      revenueShare: parseNumericValue(findColumnValue(rowObj, ['Andel av total omsättning', 'Andel_av_total_omsättning', 'RevenueShare'])),
+      accumulatedShare: parseNumericValue(findColumnValue(rowObj, ['Ackumulerad andel', 'Ackumulerad_andel', 'AccumulatedShare'])),
+      tier: parseStringValue(findColumnValue(rowObj, ['Leverantörstier', 'Tier', 'Leverantörs-tier'])),
+      profile: parseStringValue(findColumnValue(rowObj, ['Leverantörsprofil (valfri, men kraftfull)', 'Leverantörsprofil', 'Profile'])),
     }
     
     suppliers.push(supplier)
   }
   
   if (suppliers.length === 0) {
-    throw new Error('Inga giltiga leverantörer hittades i filen')
+    throw new Error('Inga giltiga leverantörer hittades i filen. Kontrollera att kolumnerna "Leverantörsnummer" och "Leverantör" finns.')
   }
   
   return suppliers
 }
 
-export function validateExcelHeaders(buffer: ArrayBuffer): { valid: boolean; missingColumns: string[] } {
+export function validateExcelHeaders(buffer: ArrayBuffer): { valid: boolean; missingColumns: string[]; foundColumns: string[] } {
   const workbook = XLSX.read(buffer, { type: 'array' })
   const sheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
@@ -127,17 +133,30 @@ export function validateExcelHeaders(buffer: ArrayBuffer): { valid: boolean; mis
   const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '', header: 1 }) as unknown[][]
   
   if (jsonData.length === 0) {
-    return { valid: false, missingColumns: ['Filen är tom'] }
+    return { valid: false, missingColumns: ['Filen är tom'], foundColumns: [] }
   }
   
-  const headers = (jsonData[0] as string[]).map(h => String(h).trim())
+  const headers = (jsonData[0] as string[]).map(h => normalizeHeader(String(h)))
+  const originalHeaders = (jsonData[0] as string[]).map(h => String(h).trim())
   
-  const requiredColumns = ['Leverantörsnummer', 'Leverantör']
-  const missingColumns = requiredColumns.filter(col => !headers.includes(col))
+  // Check for required columns (case-insensitive, normalized)
+  const requiredColumns = [
+    { name: 'Leverantörsnummer', alternatives: ['leverantörsnummer', 'leverantörnummer', 'suppliernumber', 'levnr'] },
+    { name: 'Leverantör', alternatives: ['leverantör', 'supplier', 'name', 'namn'] }
+  ]
+  
+  const missingColumns: string[] = []
+  
+  for (const req of requiredColumns) {
+    const found = req.alternatives.some(alt => headers.includes(alt))
+    if (!found) {
+      missingColumns.push(req.name)
+    }
+  }
   
   return {
     valid: missingColumns.length === 0,
-    missingColumns
+    missingColumns,
+    foundColumns: originalHeaders.filter(h => h.length > 0)
   }
 }
-

@@ -40,8 +40,9 @@ export async function POST(request: NextRequest) {
     if (!validation.valid) {
       return NextResponse.json(
         { 
-          error: "Invalid file format", 
-          missingColumns: validation.missingColumns 
+          error: `Saknade kolumner: ${validation.missingColumns.join(', ')}. Hittade: ${validation.foundColumns.slice(0, 5).join(', ')}${validation.foundColumns.length > 5 ? '...' : ''}`,
+          missingColumns: validation.missingColumns,
+          foundColumns: validation.foundColumns
         },
         { status: 400 }
       )
