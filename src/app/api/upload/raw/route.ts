@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { validateFile, sanitizeFilename, MAX_ROWS } from "@/lib/file-validation"
 import * as XLSX from "xlsx"
 import {
   RawArticleData,
@@ -47,11 +48,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No column mapping provided" }, { status: 400 })
     }
 
-    const mapping = JSON.parse(mappingStr) as RawColumnMapping
+    // SECURITY: Validate file
+    const validation = await validateFile(file)
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
 
-    // Parse Excel file
+    // SECURITY: Safe JSON parse
+    let mapping: RawColumnMapping
+    try {
+      mapping = JSON.parse(mappingStr)
+    } catch {
+      return NextResponse.json({ error: "Invalid mapping format" }, { status: 400 })
+    }
+
+    // Validate mapping has required fields
+    if (!mapping.supplierNumber || !mapping.supplierName || !mapping.revenue) {
+      return NextResponse.json({ 
+        error: "Leverantörsnummer, leverantörsnamn och belopp måste mappas" 
+      }, { status: 400 })
+    }
+
+    // Parse Excel file with security options
     const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: "array" })
+    const workbook = XLSX.read(buffer, { 
+      type: "array",
+      cellDates: false,
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+    })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
     const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
@@ -60,16 +86,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No data found in file" }, { status: 400 })
     }
 
+    // SECURITY: Limit rows
+    if (data.length > MAX_ROWS) {
+      return NextResponse.json({ 
+        error: `Filen innehåller för många rader. Max ${MAX_ROWS.toLocaleString()} rader tillåtet.` 
+      }, { status: 400 })
+    }
+
     // Konvertera till rådata format
     const articles: RawArticleData[] = []
     
     for (const row of data) {
       // Hämta värden baserat på mapping
-      const articleNumber = mapping.articleNumber ? String(row[mapping.articleNumber] || "") : ""
-      const description = mapping.description ? String(row[mapping.description] || "") : ""
+      const articleNumber = mapping.articleNumber 
+        ? String(row[mapping.articleNumber] || "").substring(0, 100) 
+        : ""
+      const description = mapping.description 
+        ? String(row[mapping.description] || "").substring(0, 500) 
+        : ""
       const quantity = mapping.quantity ? toNumber(row[mapping.quantity]) : 1
-      const supplierNumber = String(row[mapping.supplierNumber] || "")
-      const supplierName = String(row[mapping.supplierName] || "")
+      const supplierNumber = String(row[mapping.supplierNumber] || "").substring(0, 50)
+      const supplierName = String(row[mapping.supplierName] || "").substring(0, 200)
       const margin = mapping.margin ? toNumber(row[mapping.margin]) : 0
       const revenue = toNumber(row[mapping.revenue])
 
@@ -79,11 +116,11 @@ export async function POST(request: NextRequest) {
       articles.push({
         articleNumber,
         description,
-        quantity: isNaN(quantity) ? 1 : quantity,
+        quantity: isNaN(quantity) ? 1 : Math.max(0, quantity),
         supplierNumber,
         supplierName,
-        margin: isNaN(margin) ? 0 : margin,
-        revenue: isNaN(revenue) ? 0 : revenue,
+        margin: isNaN(margin) ? 0 : Math.max(-100, Math.min(100, margin)),
+        revenue: isNaN(revenue) ? 0 : Math.max(0, revenue),
       })
     }
 
@@ -155,7 +192,7 @@ export async function POST(request: NextRequest) {
     await prisma.uploadHistory.create({
       data: {
         userId: user.id,
-        fileName: file.name,
+        fileName: sanitizeFilename(file.name),
         recordCount: calculated.length,
         status: "completed",
       },
@@ -174,7 +211,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Raw import error:", error)
     return NextResponse.json(
-      { error: "Failed to process import" },
+      { error: "Kunde inte bearbeta filen. Kontrollera formatet och försök igen." },
       { status: 500 }
     )
   }

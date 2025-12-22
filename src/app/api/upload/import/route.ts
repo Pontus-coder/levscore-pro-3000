@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { calculateDerivedFields } from "@/lib/score-calculator"
+import { validateFile, sanitizeFilename, MAX_ROWS } from "@/lib/file-validation"
 import * as XLSX from 'xlsx'
 
 interface ColumnMapping {
@@ -39,9 +40,9 @@ function parseNumericValue(value: unknown): number {
   return isNaN(parsed) ? 0 : parsed
 }
 
-function parseStringValue(value: unknown): string | null {
+function parseStringValue(value: unknown, maxLength: number = 500): string | null {
   if (value === null || value === undefined || value === '') return null
-  return String(value).trim()
+  return String(value).trim().substring(0, maxLength)
 }
 
 export async function POST(request: NextRequest) {
@@ -73,7 +74,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No mapping provided" }, { status: 400 })
     }
 
-    const mapping: ColumnMapping = JSON.parse(mappingJson)
+    // SECURITY: Validate file
+    const validation = await validateFile(file)
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
+    }
+
+    // SECURITY: Safe JSON parse
+    let mapping: ColumnMapping
+    try {
+      mapping = JSON.parse(mappingJson)
+    } catch {
+      return NextResponse.json({ error: "Invalid mapping format" }, { status: 400 })
+    }
 
     if (!mapping.supplierNumber || !mapping.name) {
       return NextResponse.json(
@@ -82,8 +95,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Parse file with security options
     const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: 'array' })
+    const workbook = XLSX.read(buffer, { 
+      type: 'array',
+      cellDates: false,
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+    })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
     
@@ -93,13 +113,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Filen är tom" }, { status: 400 })
     }
 
+    // SECURITY: Limit rows
+    if (jsonData.length > MAX_ROWS) {
+      return NextResponse.json({ 
+        error: `Filen innehåller för många rader. Max ${MAX_ROWS.toLocaleString()} rader tillåtet.` 
+      }, { status: 400 })
+    }
+
     const suppliers = []
     
     for (const row of jsonData) {
       const rowObj = row as Record<string, unknown>
       
-      const supplierNumber = parseStringValue(rowObj[mapping.supplierNumber])
-      const supplierName = parseStringValue(rowObj[mapping.name])
+      const supplierNumber = parseStringValue(rowObj[mapping.supplierNumber], 50)
+      const supplierName = parseStringValue(rowObj[mapping.name], 200)
       
       if (!supplierNumber || !supplierName) continue
       
@@ -108,21 +135,21 @@ export async function POST(request: NextRequest) {
         supplierNumber,
         name: supplierName,
         userId: user.id,
-        rowCount: mapping.rowCount ? parseNumericValue(rowObj[mapping.rowCount]) : 0,
-        totalQuantity: mapping.totalQuantity ? parseNumericValue(rowObj[mapping.totalQuantity]) : 0,
-        totalRevenue: mapping.totalRevenue ? parseNumericValue(rowObj[mapping.totalRevenue]) : 0,
-        avgMargin: mapping.avgMargin ? parseNumericValue(rowObj[mapping.avgMargin]) : 0,
-        salesScore: mapping.salesScore ? parseNumericValue(rowObj[mapping.salesScore]) : 0,
-        assortmentScore: mapping.assortmentScore ? parseNumericValue(rowObj[mapping.assortmentScore]) : 0,
-        efficiencyScore: mapping.efficiencyScore ? parseNumericValue(rowObj[mapping.efficiencyScore]) : 0,
-        marginScore: mapping.marginScore ? parseNumericValue(rowObj[mapping.marginScore]) : 0,
-        totalScore: mapping.totalScore ? parseNumericValue(rowObj[mapping.totalScore]) : 0,
-        diagnosis: mapping.diagnosis ? parseStringValue(rowObj[mapping.diagnosis]) : null,
-        shortAction: mapping.shortAction ? parseStringValue(rowObj[mapping.shortAction]) : null,
-        revenueShare: mapping.revenueShare ? parseNumericValue(rowObj[mapping.revenueShare]) : 0,
-        accumulatedShare: mapping.accumulatedShare ? parseNumericValue(rowObj[mapping.accumulatedShare]) : 0,
-        tier: mapping.tier ? parseStringValue(rowObj[mapping.tier]) : null,
-        profile: mapping.profile ? parseStringValue(rowObj[mapping.profile]) : null,
+        rowCount: mapping.rowCount ? Math.max(0, parseNumericValue(rowObj[mapping.rowCount])) : 0,
+        totalQuantity: mapping.totalQuantity ? Math.max(0, parseNumericValue(rowObj[mapping.totalQuantity])) : 0,
+        totalRevenue: mapping.totalRevenue ? Math.max(0, parseNumericValue(rowObj[mapping.totalRevenue])) : 0,
+        avgMargin: mapping.avgMargin ? Math.max(-100, Math.min(100, parseNumericValue(rowObj[mapping.avgMargin]))) : 0,
+        salesScore: mapping.salesScore ? Math.max(0, Math.min(10, parseNumericValue(rowObj[mapping.salesScore]))) : 0,
+        assortmentScore: mapping.assortmentScore ? Math.max(0, Math.min(10, parseNumericValue(rowObj[mapping.assortmentScore]))) : 0,
+        efficiencyScore: mapping.efficiencyScore ? Math.max(0, Math.min(10, parseNumericValue(rowObj[mapping.efficiencyScore]))) : 0,
+        marginScore: mapping.marginScore ? Math.max(0, Math.min(10, parseNumericValue(rowObj[mapping.marginScore]))) : 0,
+        totalScore: mapping.totalScore ? Math.max(0, Math.min(40, parseNumericValue(rowObj[mapping.totalScore]))) : 0,
+        diagnosis: mapping.diagnosis ? parseStringValue(rowObj[mapping.diagnosis], 500) : null,
+        shortAction: mapping.shortAction ? parseStringValue(rowObj[mapping.shortAction], 500) : null,
+        revenueShare: mapping.revenueShare ? Math.max(0, Math.min(1, parseNumericValue(rowObj[mapping.revenueShare]))) : 0,
+        accumulatedShare: mapping.accumulatedShare ? Math.max(0, Math.min(1, parseNumericValue(rowObj[mapping.accumulatedShare]))) : 0,
+        tier: mapping.tier ? parseStringValue(rowObj[mapping.tier], 100) : null,
+        profile: mapping.profile ? parseStringValue(rowObj[mapping.profile], 500) : null,
       }
       
       // Beräkna härledda fält om de saknas
@@ -175,7 +202,7 @@ export async function POST(request: NextRequest) {
     await prisma.uploadHistory.create({
       data: {
         userId: user.id,
-        fileName: file.name,
+        fileName: sanitizeFilename(file.name),
         recordCount: suppliers.length,
         status: "completed",
       },
@@ -193,7 +220,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Error importing file:", error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to import file" },
+      { error: "Kunde inte importera filen. Kontrollera formatet och försök igen." },
       { status: 500 }
     )
   }

@@ -10,11 +10,25 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
     const { id } = await params
+
+    // Validate ID format (CUID)
+    if (!id || typeof id !== 'string' || id.length < 20 || id.length > 30) {
+      return NextResponse.json({ error: "Invalid supplier ID" }, { status: 400 })
+    }
 
     const supplier = await prisma.supplier.findUnique({
       where: { id },
@@ -38,6 +52,11 @@ export async function GET(
 
     if (!supplier) {
       return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
+    }
+
+    // SECURITY: Verify ownership - user can only access their own suppliers
+    if (supplier.userId !== user.id) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
     // Calculate adjusted score with custom factors
@@ -67,11 +86,40 @@ export async function DELETE(
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
     const { id } = await params
+
+    // Validate ID format
+    if (!id || typeof id !== 'string' || id.length < 20 || id.length > 30) {
+      return NextResponse.json({ error: "Invalid supplier ID" }, { status: 400 })
+    }
+
+    // First check if supplier exists and belongs to user
+    const supplier = await prisma.supplier.findUnique({
+      where: { id },
+      select: { userId: true },
+    })
+
+    if (!supplier) {
+      return NextResponse.json({ error: "Supplier not found" }, { status: 404 })
+    }
+
+    // SECURITY: Verify ownership - user can only delete their own suppliers
+    if (supplier.userId !== user.id) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    }
 
     await prisma.supplier.delete({
       where: { id },
@@ -86,4 +134,3 @@ export async function DELETE(
     )
   }
 }
-
