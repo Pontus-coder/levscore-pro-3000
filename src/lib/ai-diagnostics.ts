@@ -5,10 +5,20 @@
 
 import OpenAI from "openai"
 
-// Initialisera OpenAI-klienten (nyckeln kommer från miljövariabel)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy-initialisera OpenAI-klienten för att undvika fel vid build
+let openaiClient: OpenAI | null = null
+
+function getOpenAIClient(): OpenAI | null {
+  if (!process.env.OPENAI_API_KEY) {
+    return null
+  }
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    })
+  }
+  return openaiClient
+}
 
 export interface SupplierData {
   name: string
@@ -42,7 +52,8 @@ export interface AIAnalysis {
  */
 export async function generateAIDiagnosis(supplier: SupplierData): Promise<AIAnalysis> {
   // Om ingen API-nyckel finns, returnera fallback
-  if (!process.env.OPENAI_API_KEY) {
+  const openai = getOpenAIClient()
+  if (!openai) {
     return generateFallbackDiagnosis(supplier)
   }
 

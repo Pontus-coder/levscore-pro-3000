@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { getUserOrganization } from "@/lib/organization"
+import { getOrganizationContext } from "@/lib/organization"
 import { generateAIDiagnosis, type SupplierData } from "@/lib/ai-diagnostics"
 
 export async function GET(
@@ -10,25 +8,19 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.id) {
+    // Hämta användarens organisation
+    const context = await getOrganizationContext()
+    if (!context) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { id } = await params
 
-    // Hämta användarens organisation
-    const membership = await getUserOrganization(session.user.id)
-    if (!membership) {
-      return NextResponse.json({ error: "No organization found" }, { status: 403 })
-    }
-
     // Hämta leverantören
     const supplier = await prisma.supplier.findFirst({
       where: {
         id,
-        organizationId: membership.organization.id,
+        organizationId: context.organization.id,
       },
     })
 
