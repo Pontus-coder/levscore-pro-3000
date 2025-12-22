@@ -130,20 +130,22 @@ export async function getMultipleTrends(keywords: string[], geo: string = "SE"):
  */
 export function formatTrendsForAI(trends: Map<string, TrendResult>): string {
   const lines: string[] = ["📈 GOOGLE TRENDS DATA (Sverige, senaste 12 mån):"]
+  lines.push("Använd dessa konkreta siffror i din analys - citera dem direkt!")
+  lines.push("")
   
   for (const [keyword, result] of trends) {
     if (result.success && result.data) {
       const { averageInterest, trend, trendPercent, relatedQueries } = result.data
       
       const trendEmoji = trend === "rising" ? "🔼" : trend === "declining" ? "🔽" : "➡️"
-      const trendText = trend === "rising" ? "Stigande" : trend === "declining" ? "Fallande" : "Stabil"
+      const trendText = trend === "rising" ? "STIGANDE" : trend === "declining" ? "FALLANDE" : "STABIL"
       
       lines.push(`\n"${keyword}":`)
-      lines.push(`  - Sökintresse: ${averageInterest}/100`)
-      lines.push(`  - Trend: ${trendEmoji} ${trendText} (${trendPercent > 0 ? "+" : ""}${trendPercent}%)`)
+      lines.push(`  - Sökintresse: ${averageInterest}/100 (${averageInterest >= 50 ? "HÖGT" : averageInterest >= 25 ? "MEDEL" : "LÅGT"})`)
+      lines.push(`  - Trend: ${trendText} ${trendEmoji} (${trendPercent > 0 ? "+" : ""}${trendPercent}% förändring senaste 12 mån)`)
       
       if (relatedQueries.length > 0) {
-        lines.push(`  - Relaterade sökningar: ${relatedQueries.join(", ")}`)
+        lines.push(`  - Relaterade sökningar (använd för produktförslag): ${relatedQueries.join(", ")}`)
       }
     } else {
       lines.push(`\n"${keyword}": Ingen data tillgänglig`)

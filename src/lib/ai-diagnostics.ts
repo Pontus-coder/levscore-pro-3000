@@ -74,6 +74,17 @@ Svara ALLTID på svenska.
 Var konkret och specifik - undvik generella fraser.
 Fokusera på VAR möjligheterna finns och VAD som bör göras.
 
+VIKTIGT - Google Trends-data:
+Om trenddata inkluderas i analysen:
+- Du HAR redan trenddata - använd den DIREKT, säg INTE "kolla trends" eller "analysera trends"
+- Citera ALLTID konkreta siffror: "industridammsugare har stigande trend (+25%)" eller "sökintresse 75/100"
+- Nämn specifika sökord och deras exakta trender i din analys
+- Använd relaterade sökningar för att ge konkreta produktförslag (t.ex. "Baserat på relaterade sökningar som X och Y, överväg att lägga till...")
+- Om ett sökord har stigande trend, säg exakt hur mycket (t.ex. "+15%", "+30%")
+- Om sökintresset är högt (över 50/100), nämn det explicit
+- Prioritera kategorier med stigande trender högre i rekommendationerna
+- Säg INTE "baserat på trendanalys" - säg istället "industridammsugare har ökat 25% i sökningar"
+
 Score-systemet:
 - Sales Score (max 3): Relativ omsättning jämfört med andra leverantörer
 - Sortiment Score (max 2): Antal artiklar/produktbredd
@@ -84,13 +95,7 @@ Score-systemet:
 Tier-systemet:
 - A-tier: Topp 80% av omsättningen (kärnleverantörer)
 - B-tier: Nästa 15% (viktiga men inte dominerande)
-- C-tier: Sista 5% (svans, potentiellt ineffektiva)
-
-Google Trends-data:
-- Om trenddata inkluderas, använd den för att identifiera växande vs krympande produktkategorier
-- Sökintresse 0-100 där 100 = högsta popularitet under perioden
-- "Stigande" trend = ökande sökningar = ökande efterfrågan
-- Relaterade sökningar kan ge tips om kompletterande produkter`
+- C-tier: Sista 5% (svans, potentiellt ineffektiva)`
         },
         {
           role: "user",
@@ -99,7 +104,7 @@ Google Trends-data:
       ],
       response_format: { type: "json_object" },
       temperature: 0.7,
-      max_tokens: 800,
+      max_tokens: 1000, // Ökat för mer detaljerade analyser med trenddata
     })
 
     const content = response.choices[0]?.message?.content
@@ -161,7 +166,15 @@ function buildPrompt(supplier: SupplierData): string {
 
 ${supplier.trendsContext}
 
-OBS: Använd trenddatan för att ge mer specifika rekommendationer! Om en produktkategori har stigande sökintresse, prioritera den högre.`
+⚠️ KRITISKT - TRENDDATA:
+- Du HAR trenddata ovan - använd den DIREKT i din analys!
+- Citera ALLTID konkreta siffror från trenddata (t.ex. "industridammsugare har stigande trend (+25%)" eller "sökintresse 75/100")
+- Nämn specifika sökord och deras exakta trender i diagnosis och opportunities
+- Använd relaterade sökningar för konkreta produktförslag
+- Säg INTE "kolla trends", "analysera trends" eller "baserat på trendanalys" - du HAR redan datan, använd den direkt!
+- Om ett sökord har stigande trend, säg exakt hur mycket (t.ex. "+15%", "+30%")
+- Om sökintresset är högt (över 50/100), nämn det explicit
+- Prioritera kategorier med stigande trender högre i rekommendationerna`
   }
 
   prompt += `
@@ -170,11 +183,11 @@ OBS: Använd trenddatan för att ge mer specifika rekommendationer! Om en produk
 
 Ge din analys som JSON med exakt detta format:
 {
-  "diagnosis": "2-3 meningar som förklarar VARFÖR leverantören presterar som den gör. Var specifik om vad siffrorna betyder.${supplier.trendsContext ? " Inkludera insikter från trenddata." : ""}",
-  "opportunities": "2-3 meningar om VAR de största möjligheterna finns.${supplier.trendsContext ? " Basera på både intern data och söktrender." : ""} Koppla till konkreta åtgärder.",
-  "action": "EN konkret, prioriterad rekommendation som börjar med ett verb (t.ex. 'Utöka sortimentet med...')",
+  "diagnosis": "2-3 meningar som förklarar VARFÖR leverantören presterar som den gör. Var specifik om vad siffrorna betyder.${supplier.trendsContext ? " MÅSTE inkludera konkreta trenddata med siffror (t.ex. 'Sökintresset för X är Y/100 och har ökat Z%')." : ""}",
+  "opportunities": "2-3 meningar om VAR de största möjligheterna finns.${supplier.trendsContext ? " MÅSTE nämna specifika sökord och deras trender med siffror. Använd relaterade sökningar för konkreta produktförslag (t.ex. 'Baserat på relaterade sökningar som X och Y, överväg att lägga till...')." : ""} Koppla till konkreta åtgärder.",
+  "action": "EN konkret, prioriterad rekommendation som börjar med ett verb.${supplier.trendsContext ? " Basera på trenddata - nämn specifika kategorier som trendar uppåt med siffror (t.ex. 'Utöka sortimentet med produkter relaterade till X som har ökat Y%')." : ""}",
   "priority": "high/medium/low baserat på potential och nuvarande position",
-  "confidence": ${supplier.trendsContext ? "75-95" : "70-90"} beroende på hur tydlig datan är
+  "confidence": ${supplier.trendsContext ? "80-95" : "70-90"} beroende på hur tydlig datan är
 }`
 
   return prompt
