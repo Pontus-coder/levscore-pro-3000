@@ -55,6 +55,17 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const [supplier, setSupplier] = useState<Supplier | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // AI Analysis state
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    diagnosis: string
+    opportunities: string
+    action: string
+    priority: "high" | "medium" | "low"
+    confidence: number
+  } | null>(null)
+  const [isLoadingAI, setIsLoadingAI] = useState(false)
+  const [isAIPowered, setIsAIPowered] = useState(false)
 
   const fetchSupplier = useCallback(async () => {
     try {
@@ -99,6 +110,39 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       fetchSupplier()
     } catch (err) {
       alert(err instanceof Error ? err.message : "Ett fel uppstod")
+    }
+  }
+
+  const fetchAIAnalysis = async () => {
+    if (!supplier) return
+    
+    setIsLoadingAI(true)
+    try {
+      const response = await fetch(`/api/suppliers/${resolvedParams.id}/ai-analysis`)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Kunde inte generera AI-analys")
+      }
+      
+      setAiAnalysis(data.analysis)
+      setIsAIPowered(data.isAIPowered)
+    } catch (err) {
+      console.error("AI analysis error:", err)
+      alert(err instanceof Error ? err.message : "Ett fel uppstod")
+    } finally {
+      setIsLoadingAI(false)
+    }
+  }
+
+  const getPriorityBadge = (priority: "high" | "medium" | "low") => {
+    switch (priority) {
+      case "high":
+        return <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs font-medium">Hög prioritet</span>
+      case "medium":
+        return <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 rounded text-xs font-medium">Medium</span>
+      case "low":
+        return <span className="px-2 py-0.5 bg-slate-500/20 text-slate-400 rounded text-xs font-medium">Låg prioritet</span>
     }
   }
 
@@ -314,16 +358,127 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               </div>
             </Card>
 
-            {/* Diagnosis */}
-            {supplier.diagnosis && (
+            {/* AI Analysis */}
+            <Card variant="glass" className="relative overflow-hidden">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-purple-500/20">
+                    <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-100">AI-analys</h2>
+                  {isAIPowered && (
+                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded text-xs font-medium">
+                      GPT-4
+                    </span>
+                  )}
+                </div>
+                {!aiAnalysis && (
+                  <Button
+                    onClick={fetchAIAnalysis}
+                    disabled={isLoadingAI}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    {isLoadingAI ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-slate-400/20 border-t-slate-400 rounded-full animate-spin mr-2" />
+                        Analyserar...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Generera analys
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+
+              {aiAnalysis ? (
+                <div className="space-y-4">
+                  {/* Diagnosis */}
+                  <div className="p-4 bg-slate-800/50 rounded-xl">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-slate-400">Nulägesanalys</h3>
+                      {getPriorityBadge(aiAnalysis.priority)}
+                    </div>
+                    <p className="text-slate-200">{aiAnalysis.diagnosis}</p>
+                  </div>
+
+                  {/* Opportunities */}
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                    <h3 className="text-sm font-medium text-emerald-400 mb-2 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      Möjligheter
+                    </h3>
+                    <p className="text-slate-200">{aiAnalysis.opportunities}</p>
+                  </div>
+
+                  {/* Action */}
+                  <div className="p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                    <h3 className="text-sm font-medium text-purple-400 mb-2 flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Rekommenderad åtgärd
+                    </h3>
+                    <p className="text-slate-200 font-medium">{aiAnalysis.action}</p>
+                  </div>
+
+                  {/* Confidence */}
+                  <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
+                    <span>
+                      {isAIPowered ? "Analyserad med GPT-4o-mini" : "Regelbaserad analys"}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      Konfidens: {aiAnalysis.confidence}%
+                      <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-purple-500 rounded-full"
+                          style={{ width: `${aiAnalysis.confidence}%` }}
+                        />
+                      </div>
+                    </span>
+                  </div>
+
+                  {/* Regenerate button */}
+                  <div className="pt-2 border-t border-slate-700">
+                    <button
+                      onClick={fetchAIAnalysis}
+                      disabled={isLoadingAI}
+                      className="text-sm text-slate-400 hover:text-purple-400 transition-colors flex items-center gap-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Generera ny analys
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <p className="mb-2">Klicka på &quot;Generera analys&quot; för att få en AI-driven analys</p>
+                  <p className="text-xs">Analysen ger djupare insikter om möjligheter och konkreta åtgärder</p>
+                </div>
+              )}
+            </Card>
+
+            {/* Original Diagnosis (fallback) */}
+            {supplier.diagnosis && !aiAnalysis && (
               <Card variant="glass">
-                <h2 className="text-lg font-semibold text-slate-100 mb-4">Diagnos</h2>
+                <h2 className="text-lg font-semibold text-slate-100 mb-4">Automatisk diagnos</h2>
                 <p className="text-slate-300 whitespace-pre-wrap">{supplier.diagnosis}</p>
               </Card>
             )}
 
-            {/* Action */}
-            {supplier.shortAction && (
+            {/* Original Action (fallback) */}
+            {supplier.shortAction && !aiAnalysis && (
               <Card variant="gradient">
                 <div className="flex items-start gap-4">
                   <div className="p-3 rounded-xl bg-emerald-500/20">
