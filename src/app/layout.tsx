@@ -16,6 +16,14 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "LevScore PRO 3000 - Leverantörspoängsystem",
   description: "Analysera och optimera dina leverantörsrelationer med kraftfull datadriven insikt.",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
   icons: {
     icon: "/icon.svg",
     apple: "/apple-icon.svg",

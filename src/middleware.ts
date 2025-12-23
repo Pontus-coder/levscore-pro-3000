@@ -7,6 +7,9 @@ export function middleware(request: NextRequest) {
   // Security headers
   const headers = response.headers
   
+  // Prevent search engine indexing
+  headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet')
+  
   // Prevent clickjacking
   headers.set('X-Frame-Options', 'DENY')
   
