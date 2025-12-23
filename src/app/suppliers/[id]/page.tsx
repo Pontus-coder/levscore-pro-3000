@@ -432,7 +432,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               
               <div className="flex gap-2 mb-3">
                 <Input
-                  placeholder="T.ex. 'borrmaskiner', 'verktyg'..."
+                  placeholder="T.ex. 'industridammsugare', 'städutrustning', 'rengöringsmedel'..."
                   value={newKeyword}
                   onChange={(e) => setNewKeyword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addKeyword()}
