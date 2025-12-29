@@ -960,9 +960,29 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                   </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-slate-400">Täckningsgrad</dt>
+                  <dt className="text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span>Täckningsgrad</span>
+                      {hasMarginAdjustment && supplier.adjustedAvgMargin !== null && supplier.adjustedAvgMargin !== undefined && (
+                        <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium" title="Justerad med bonus/anbudsstöd">
+                          +
+                        </span>
+                      )}
+                    </div>
+                  </dt>
                   <dd className="font-mono font-medium text-slate-200">
-                    {formatPercent(supplier.avgMargin)}
+                    {hasMarginAdjustment && supplier.adjustedAvgMargin !== null && supplier.adjustedAvgMargin !== undefined ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="line-through opacity-60 text-slate-400">
+                          {formatPercent(supplier.avgMargin)}
+                        </span>
+                        <span className="text-emerald-400">
+                          {formatPercent(supplier.adjustedAvgMargin)}
+                        </span>
+                      </div>
+                    ) : (
+                      formatPercent(supplier.avgMargin)
+                    )}
                   </dd>
                 </div>
                 <div className="flex justify-between">
