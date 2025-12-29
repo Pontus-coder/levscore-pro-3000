@@ -21,6 +21,7 @@ interface Supplier {
   efficiencyScore: string
   marginScore: string
   totalScore: string
+  adjustedTotalScore?: number // Adjusted score including bonus/tender support and custom factors
   tier: string | null
   profile: string | null
   diagnosis: string | null
@@ -43,7 +44,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [sortField, setSortField] = useState("totalScore")
+  const [sortField, setSortField] = useState("adjustedTotalScore")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)

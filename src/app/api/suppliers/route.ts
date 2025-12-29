@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { getOrganizationContext } from "@/lib/organization"
+import { calculateAdjustedValues } from "@/lib/score-calculator"
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const tier = searchParams.get("tier")
     const search = searchParams.get("search")
-    const sortBy = searchParams.get("sortBy") || "totalScore"
+    const sortBy = searchParams.get("sortBy") || "adjustedTotalScore"
     const sortOrder = searchParams.get("sortOrder") || "desc"
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,9 +35,6 @@ export async function GET(request: NextRequest) {
 
     const suppliers = await prisma.supplier.findMany({
       where,
-      orderBy: {
-        [sortBy]: sortOrder,
-      },
       include: {
         customFactors: {
           include: {
@@ -49,6 +47,54 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+    })
+
+    // Calculate adjusted total score for each supplier (including bonus/tender support and custom factors)
+    const suppliersWithAdjustedScore = suppliers.map(supplier => {
+      // Calculate adjusted values from bonus/tender support
+      const adjusted = calculateAdjustedValues(
+        Number(supplier.totalTB),
+        Number(supplier.totalRevenue),
+        supplier.bonusAmount,
+        supplier.tenderSupport,
+        Number(supplier.salesScore),
+        Number(supplier.assortmentScore),
+        Number(supplier.efficiencyScore)
+      )
+
+      // Add custom factors
+      const customFactorsScore = supplier.customFactors.reduce((sum, factor) => {
+        return sum + Number(factor.factorValue) * Number(factor.weight)
+      }, 0)
+
+      // Final adjusted score = adjustedTotalScore (from bonus) + custom factors
+      const finalAdjustedTotalScore = adjusted.adjustedTotalScore + customFactorsScore
+
+      return {
+        ...supplier,
+        adjustedTotalScore: finalAdjustedTotalScore,
+      }
+    })
+
+    // Sort by adjustedTotalScore (or the requested field)
+    suppliersWithAdjustedScore.sort((a, b) => {
+      let aValue: number
+      let bValue: number
+
+      if (sortBy === "adjustedTotalScore") {
+        aValue = a.adjustedTotalScore
+        bValue = b.adjustedTotalScore
+      } else {
+        // For other fields, use the original field value
+        aValue = Number((a as any)[sortBy] || 0)
+        bValue = Number((b as any)[sortBy] || 0)
+      }
+
+      if (sortOrder === "asc") {
+        return aValue - bValue
+      } else {
+        return bValue - aValue
+      }
     })
 
     // Calculate aggregated stats
@@ -70,8 +116,8 @@ export async function GET(request: NextRequest) {
       totalSuppliers: suppliers.length,
       totalRevenue,
       avgMargin,
-      avgTotalScore: suppliers.length > 0
-        ? suppliers.reduce((sum, s) => sum + Number(s.totalScore), 0) / suppliers.length
+      avgTotalScore: suppliersWithAdjustedScore.length > 0
+        ? suppliersWithAdjustedScore.reduce((sum, s) => sum + s.adjustedTotalScore, 0) / suppliersWithAdjustedScore.length
         : 0,
       tierDistribution: suppliers.reduce((acc, s) => {
         const tier = s.tier || "Okänd"
@@ -80,7 +126,7 @@ export async function GET(request: NextRequest) {
       }, {} as Record<string, number>),
     }
 
-    return NextResponse.json({ suppliers, stats })
+    return NextResponse.json({ suppliers: suppliersWithAdjustedScore, stats })
   } catch (error) {
     console.error("Error fetching suppliers:", error)
     return NextResponse.json(

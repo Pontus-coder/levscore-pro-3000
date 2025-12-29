@@ -17,6 +17,7 @@ interface Supplier {
   efficiencyScore: string
   marginScore: string
   totalScore: string
+  adjustedTotalScore?: number // Adjusted score including bonus/tender support and custom factors
   tier: string | null
   profile: string | null
   diagnosis: string | null
@@ -203,11 +204,11 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
               </th>
               <th 
                 className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-200"
-                onClick={() => onSort?.("totalScore")}
+                onClick={() => onSort?.("adjustedTotalScore")}
               >
                 <div className="flex items-center justify-end gap-1">
                   Total Score
-                  <SortIcon field="totalScore" />
+                  <SortIcon field="adjustedTotalScore" />
                 </div>
               </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">
@@ -247,22 +248,55 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                 <td className="px-4 py-4">
                   <div className="flex flex-col items-end gap-1">
                     <div>
-                      <span className={`font-bold text-lg ${getScoreColor(parseFloat(supplier.totalScore))}`}>
-                        {formatScore(supplier.totalScore)}
-                      </span>
-                      <span className="text-xs text-slate-500 ml-0.5">/10</span>
+                      {(() => {
+                        const displayScore = supplier.adjustedTotalScore !== undefined && supplier.adjustedTotalScore !== null
+                          ? supplier.adjustedTotalScore
+                          : parseFloat(supplier.totalScore)
+                        const originalScore = parseFloat(supplier.totalScore)
+                        const hasAdjustment = supplier.adjustedTotalScore !== undefined && supplier.adjustedTotalScore !== null && supplier.adjustedTotalScore !== originalScore
+                        
+                        return (
+                          <>
+                            {hasAdjustment ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="line-through opacity-60 text-slate-400 text-sm">
+                                  {formatScore(originalScore.toString())}
+                                </span>
+                                <span className={`font-bold text-lg ${getScoreColor(displayScore)}`}>
+                                  {formatScore(displayScore.toString())}
+                                </span>
+                                <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium" title="Justerad med bonus/anbudsstöd">
+                                  +
+                                </span>
+                              </div>
+                            ) : (
+                              <span className={`font-bold text-lg ${getScoreColor(displayScore)}`}>
+                                {formatScore(displayScore.toString())}
+                              </span>
+                            )}
+                            <span className="text-xs text-slate-500 ml-0.5">/10</span>
+                          </>
+                        )
+                      })()}
                     </div>
                     {/* Mini progress bar */}
                     <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          parseFloat(supplier.totalScore) >= 8 ? "bg-emerald-500" :
-                          parseFloat(supplier.totalScore) >= 6 ? "bg-blue-500" :
-                          parseFloat(supplier.totalScore) >= 4 ? "bg-amber-500" :
-                          parseFloat(supplier.totalScore) >= 2 ? "bg-orange-500" : "bg-red-500"
-                        }`}
-                        style={{ width: `${Math.min((parseFloat(supplier.totalScore) / 10) * 100, 100)}%` }}
-                      />
+                      {(() => {
+                        const displayScore = supplier.adjustedTotalScore !== undefined && supplier.adjustedTotalScore !== null
+                          ? supplier.adjustedTotalScore
+                          : parseFloat(supplier.totalScore)
+                        return (
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              displayScore >= 8 ? "bg-emerald-500" :
+                              displayScore >= 6 ? "bg-blue-500" :
+                              displayScore >= 4 ? "bg-amber-500" :
+                              displayScore >= 2 ? "bg-orange-500" : "bg-red-500"
+                            }`}
+                            style={{ width: `${Math.min((displayScore / 10) * 100, 100)}%` }}
+                          />
+                        )
+                      })()}
                     </div>
                   </div>
                 </td>
