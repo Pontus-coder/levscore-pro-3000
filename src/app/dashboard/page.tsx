@@ -45,6 +45,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [sortField, setSortField] = useState("totalScore")
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -85,6 +87,35 @@ export default function DashboardPage() {
     }
   }
 
+  const handleDeleteAll = async () => {
+    if (!confirm("Är du säker på att du vill radera ALL importerad data? Detta går inte att ångra!")) {
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch("/api/suppliers/delete-all", {
+        method: "DELETE",
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Kunde inte radera data")
+      }
+
+      // Uppdatera data efter radering
+      setSuppliers([])
+      setStats(null)
+      setShowDeleteConfirm(false)
+      alert(`All data har raderats. ${data.deletedSuppliers} leverantörer och ${data.deletedUploads} uppladdningar borttagna.`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Ett fel uppstod")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("sv-SE", {
       style: "currency",
@@ -120,15 +151,62 @@ export default function DashboardPage() {
             <h1 className="text-2xl font-bold text-slate-100">Dashboard</h1>
             <p className="text-slate-400">Översikt av dina leverantörer</p>
           </div>
-          <Link href="/upload">
-            <Button>
-              <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Ladda upp ny data
-            </Button>
-          </Link>
+          <div className="flex gap-3">
+            {suppliers.length > 0 && (
+              <Button
+                onClick={() => setShowDeleteConfirm(true)}
+                variant="secondary"
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Radera all data
+              </Button>
+            )}
+            <Link href="/upload">
+              <Button>
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Ladda upp ny data
+              </Button>
+            </Link>
+          </div>
         </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-900 border border-red-500/30 rounded-xl p-6 max-w-md w-full">
+              <h2 className="text-xl font-bold text-red-400 mb-2">Radera all data?</h2>
+              <p className="text-slate-300 mb-4">
+                Detta kommer att radera alla importerade leverantörer och uppladdningshistorik. 
+                Detta går <strong>inte att ångra</strong>.
+              </p>
+              <p className="text-sm text-slate-500 mb-6">
+                Du kommer att kunna ladda upp ny data efter raderingen.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleDeleteAll}
+                  disabled={isDeleting}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                >
+                  {isDeleting ? "Raderar..." : "Ja, radera allt"}
+                </Button>
+                <Button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Avbryt
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">

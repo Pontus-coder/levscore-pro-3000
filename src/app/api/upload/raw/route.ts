@@ -18,6 +18,7 @@ interface RawColumnMapping {
   supplierName: string
   margin: string
   revenue: string
+  grossProfit: string  // TB (Bruttovinst) - används för korrekt TG-beräkning
 }
 
 export async function POST(request: NextRequest) {
@@ -101,6 +102,7 @@ export async function POST(request: NextRequest) {
       const supplierName = String(row[mapping.supplierName] || "").substring(0, 200)
       const margin = mapping.margin ? toNumber(row[mapping.margin]) : 0
       const revenue = toNumber(row[mapping.revenue])
+      const grossProfit = mapping.grossProfit ? toNumber(row[mapping.grossProfit]) : undefined
 
       // Skippa rader utan leverantörsnummer
       if (!supplierNumber) continue
@@ -113,6 +115,7 @@ export async function POST(request: NextRequest) {
         supplierName,
         margin: isNaN(margin) ? 0 : Math.max(-100, Math.min(100, margin)),
         revenue: isNaN(revenue) ? 0 : Math.max(0, revenue),
+        grossProfit: grossProfit !== undefined && !isNaN(grossProfit) ? Math.max(0, grossProfit) : undefined,
       })
     }
 

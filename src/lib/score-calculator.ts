@@ -35,8 +35,9 @@ export interface RawArticleData {
   quantity: number
   supplierNumber: string
   supplierName: string
-  margin: number      // TG i procent
-  revenue: number     // Belopp
+  margin: number      // TG i procent (valfritt, kan beräknas från TB)
+  revenue: number     // Belopp (Omsättning)
+  grossProfit?: number // TB (Bruttovinst) - används för korrekt TG-beräkning
 }
 
 /**
@@ -70,6 +71,7 @@ export interface CalculatedSupplier extends AggregatedSupplier {
 
 /**
  * Aggregera artikeldata till leverantörsnivå
+ * TG beräknas korrekt: (Total TB / Total Omsättning) * 100
  */
 export function aggregateBySupplier(articles: RawArticleData[]): AggregatedSupplier[] {
   const supplierMap = new Map<string, {
@@ -78,22 +80,25 @@ export function aggregateBySupplier(articles: RawArticleData[]): AggregatedSuppl
     rows: number
     totalQuantity: number
     totalRevenue: number
-    marginSum: number
-    marginCount: number
+    totalGrossProfit: number  // Summa TB
   }>()
 
   for (const article of articles) {
     const key = article.supplierNumber
     const existing = supplierMap.get(key)
 
+    // Beräkna TB om det inte finns - använd margin om TB saknas
+    let grossProfit = article.grossProfit
+    if (grossProfit === undefined || grossProfit === null) {
+      // Fallback: räkna TB från margin om TB saknas
+      grossProfit = article.revenue * (article.margin / 100)
+    }
+
     if (existing) {
       existing.rows += 1
       existing.totalQuantity += article.quantity
       existing.totalRevenue += article.revenue
-      if (article.margin > 0) {
-        existing.marginSum += article.margin
-        existing.marginCount += 1
-      }
+      existing.totalGrossProfit += grossProfit
     } else {
       supplierMap.set(key, {
         supplierNumber: article.supplierNumber,
@@ -101,20 +106,26 @@ export function aggregateBySupplier(articles: RawArticleData[]): AggregatedSuppl
         rows: 1,
         totalQuantity: article.quantity,
         totalRevenue: article.revenue,
-        marginSum: article.margin > 0 ? article.margin : 0,
-        marginCount: article.margin > 0 ? 1 : 0,
+        totalGrossProfit: grossProfit,
       })
     }
   }
 
-  return Array.from(supplierMap.values()).map(s => ({
-    supplierNumber: s.supplierNumber,
-    name: s.name,
-    rowCount: s.rows,
-    totalQuantity: s.totalQuantity,
-    totalRevenue: s.totalRevenue,
-    avgMargin: s.marginCount > 0 ? s.marginSum / s.marginCount : 0,
-  }))
+  return Array.from(supplierMap.values()).map(s => {
+    // Korrekt TG-beräkning: (Total TB / Total Omsättning) * 100
+    const avgMargin = s.totalRevenue > 0 
+      ? (s.totalGrossProfit / s.totalRevenue) * 100 
+      : 0
+
+    return {
+      supplierNumber: s.supplierNumber,
+      name: s.name,
+      rowCount: s.rows,
+      totalQuantity: s.totalQuantity,
+      totalRevenue: s.totalRevenue,
+      avgMargin,
+    }
+  })
 }
 
 /**

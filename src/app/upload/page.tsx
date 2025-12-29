@@ -29,6 +29,7 @@ interface RawColumnMapping {
   supplierName: string
   margin: string
   revenue: string
+  grossProfit: string  // TB (Bruttovinst)
 }
 
 // Aggregated supplier data mapping
@@ -60,8 +61,9 @@ const RAW_FIELD_LABELS: Record<keyof RawColumnMapping, { label: string; required
   quantity: { label: "Antal", required: false, description: "Antal sålda" },
   supplierNumber: { label: "Lev.nummer", required: true, description: "Leverantörsnummer" },
   supplierName: { label: "Lev.namn", required: true, description: "Leverantörens namn" },
-  margin: { label: "TG", required: false, description: "Täckningsgrad i %" },
+  margin: { label: "TG", required: false, description: "Täckningsgrad i % (valfritt om TB finns)" },
   revenue: { label: "Belopp", required: true, description: "Försäljningsbelopp i SEK" },
+  grossProfit: { label: "TB", required: false, description: "Bruttovinst (TB) - används för korrekt TG-beräkning" },
 }
 
 const AGGREGATED_FIELD_LABELS: Record<keyof AggregatedColumnMapping, { label: string; required: boolean; description: string }> = {
@@ -92,6 +94,7 @@ const emptyRawMapping: RawColumnMapping = {
   supplierName: "",
   margin: "",
   revenue: "",
+  grossProfit: "",
 }
 
 const emptyAggregatedMapping: AggregatedColumnMapping = {
@@ -153,6 +156,7 @@ export default function UploadPage() {
       supplierName: ["lev.namn", "levnamn", "leverantör", "supplier", "leverantörsnamn"],
       margin: ["tg", "tg%", "marginal", "margin", "täckningsgrad", "täckning"],
       revenue: ["belopp", "omsättning", "revenue", "summa", "försäljning", "amount"],
+      grossProfit: ["tb", "bruttovinst", "gross profit", "grossprofit", "vinst", "profit"],
     }
     
     for (const [field, alternatives] of Object.entries(autoMappings)) {
