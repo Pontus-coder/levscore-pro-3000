@@ -305,8 +305,12 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Raw import error:", error)
+    const errorMessage = error instanceof Error ? error.message : "Okänt fel"
     return NextResponse.json(
-      { error: "Kunde inte bearbeta filen. Kontrollera formatet och försök igen." },
+      { 
+        error: "Kunde inte bearbeta filen. Kontrollera formatet och försök igen.",
+        details: errorMessage // Lägg till detaljer för debugging
+      },
       { status: 500 }
     )
   }

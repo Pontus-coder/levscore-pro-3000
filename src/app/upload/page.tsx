@@ -291,7 +291,10 @@ export default function UploadPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Import misslyckades")
+        // Visa mer detaljerad felinformation om det finns
+        const errorMsg = data.error || "Import misslyckades"
+        const details = data.details ? `\n\nDetaljer: ${data.details}` : ""
+        throw new Error(errorMsg + details)
       }
 
       setSuccess(data.message)
