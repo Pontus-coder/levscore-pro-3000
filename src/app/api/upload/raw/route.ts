@@ -294,6 +294,13 @@ export async function POST(request: NextRequest) {
         totalSuppliers: calculated.length,
         existingBeforeDelete: allExistingSuppliersForLookup.length,
         finalTotalRevenue: finalTotalRevenue,
+        // Debug-info för att se vad som händer
+        debug: {
+          totalRevenueFromArticles: totalRevenueFromArticles,
+          totalRevenueFromAggregated: totalRevenueFromAggregated,
+          fileTotalRevenue: fileTotalRevenue,
+          beforeTotalRevenue: beforeTotalRevenue,
+        }
       },
     })
   } catch (error) {

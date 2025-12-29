@@ -366,6 +366,38 @@ export default function UploadPage() {
             <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
               <p className="text-emerald-400 font-medium">{success}</p>
             </div>
+            
+            {/* Debug-info för att se vad som händer */}
+            {importStats.debug && (
+              <Card variant="glass" className="bg-slate-800/50 border-slate-700">
+                <h3 className="font-semibold text-slate-300 mb-3">🔍 Debug-info (för testning):</h3>
+                <div className="text-xs text-slate-400 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-500">Total omsättning från artiklar:</span>
+                      <span className="text-slate-200 ml-2 block">{importStats.debug.totalRevenueFromArticles.toLocaleString('sv-SE')} kr</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Efter aggregering:</span>
+                      <span className="text-slate-200 ml-2 block">{importStats.debug.totalRevenueFromAggregated.toLocaleString('sv-SE')} kr</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Total omsättning i filen:</span>
+                      <span className="text-slate-200 ml-2 block">{importStats.debug.fileTotalRevenue.toLocaleString('sv-SE')} kr</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Före import:</span>
+                      <span className="text-slate-200 ml-2 block">{importStats.debug.beforeTotalRevenue.toLocaleString('sv-SE')} kr</span>
+                    </div>
+                    <div className="col-span-2 border-t border-slate-700 pt-2">
+                      <span className="text-slate-500">Efter import (från databas):</span>
+                      <span className="text-slate-200 ml-2 font-semibold">{importStats.finalTotalRevenue?.toLocaleString('sv-SE')} kr</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+            
             <Card variant="glass">
               <h3 className="font-semibold text-slate-100 mb-4">Import-statistik</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
