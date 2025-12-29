@@ -796,7 +796,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                           </span>
                         </div>
                       )}
-                      {supplier.adjustedAvgMargin !== undefined && supplier.avgMargin && (
+                      {supplier.adjustedAvgMargin !== null && supplier.adjustedAvgMargin !== undefined && supplier.avgMargin && (
                         <div className="flex justify-between">
                           <span className="text-slate-400">TG:</span>
                           <span className="text-slate-200">
@@ -804,7 +804,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                           </span>
                         </div>
                       )}
-                      {supplier.adjustedMarginScore !== undefined && supplier.marginScore && (
+                      {supplier.adjustedMarginScore !== null && supplier.adjustedMarginScore !== undefined && supplier.marginScore && (
                         <div className="flex justify-between">
                           <span className="text-slate-400">Margin Score:</span>
                           <span className="text-slate-200">
