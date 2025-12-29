@@ -148,22 +148,29 @@ export async function POST(request: NextRequest) {
       if (sampleRow) {
         const rawRevenue = sampleRow[mapping.revenue]
         const rawTB = mapping.grossProfit ? sampleRow[mapping.grossProfit] : null
-        sampleDebugInfo = {
+        
+        const debugInfo: {
+          revenue: { raw: unknown; type: string; parsed: number; column: string }
+          tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+        } = {
           revenue: {
             raw: rawRevenue,
             type: typeof rawRevenue,
             parsed: sampleArticle.revenue,
             column: mapping.revenue
-          },
-          ...(rawTB && {
-            tb: {
-              raw: rawTB,
-              type: typeof rawTB,
-              parsed: sampleArticle.grossProfit,
-              column: mapping.grossProfit
-            }
-          })
+          }
         }
+        
+        if (rawTB) {
+          debugInfo.tb = {
+            raw: rawTB,
+            type: typeof rawTB,
+            parsed: sampleArticle.grossProfit,
+            column: mapping.grossProfit
+          }
+        }
+        
+        sampleDebugInfo = debugInfo
         console.log(`[RAW IMPORT] Exempel på värden från Excel:`, sampleDebugInfo)
       }
     }
