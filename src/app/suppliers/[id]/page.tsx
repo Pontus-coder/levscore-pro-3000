@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { FactorForm } from "@/components/FactorForm"
+import { ArticleList } from "@/components/ArticleList"
 
 interface CustomFactor {
   id: string
@@ -1005,6 +1006,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                 </div>
               </dl>
             </Card>
+
+            {/* Article List */}
+            <ArticleList supplierId={supplier.id} />
 
             {/* Profile */}
             {supplier.profile && (

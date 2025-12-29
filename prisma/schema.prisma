@@ -146,6 +146,7 @@ model Supplier {
   adjustedMarginScore Float?                      // marginScore baserat på adjustedAvgMargin
   adjustedTotalScore Float?                       // totalScore med adjustedMarginScore
   customFactors     CustomFactor[]
+  articles          Article[]                     // Artiklar för denna leverantör
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -176,4 +177,24 @@ model UploadHistory {
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   uploadedAt     DateTime     @default(now())
+}
+
+model Article {
+  id              String   @id @default(cuid())
+  supplierId      String
+  supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  articleNumber   String
+  description     String?  @db.Text
+  quantity        Int      @default(0)
+  revenue         Float    @default(0)
+  grossProfit     Float?   // TB (Bruttovinst)
+  margin          Float?   // TG i procent (beräknas från grossProfit om det finns)
+  revenueShare    Float    @default(0)  // Andel av leverantörens totala omsättning
+  accumulatedShare Float   @default(0)  // Ackumulerad andel (för ABC-analys)
+  category        String?  // A, B, eller C baserat på ABC-analys
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([supplierId])
+  @@index([supplierId, revenue])
 }

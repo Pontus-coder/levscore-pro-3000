@@ -281,6 +281,72 @@ function calculateTotalScore(sales: number, assortment: number, efficiency: numb
 }
 
 /**
+ * Kategorisera artiklar med ABC-analys baserat på omsättning
+ * A = 80% av omsättningen
+ * B = 15% av omsättningen (nästa 15%)
+ * C = 5% av omsättningen (sista 5%)
+ */
+export interface ArticleWithABC {
+  articleNumber: string
+  description: string
+  quantity: number
+  revenue: number
+  grossProfit?: number
+  margin?: number
+  revenueShare: number
+  accumulatedShare: number
+  category: "A" | "B" | "C"
+}
+
+export function categorizeArticlesABC(articles: RawArticleData[], totalRevenue: number): ArticleWithABC[] {
+  if (articles.length === 0 || totalRevenue === 0) {
+    return []
+  }
+
+  // Sortera artiklar efter omsättning (fallande)
+  const sorted = [...articles].sort((a, b) => b.revenue - a.revenue)
+
+  // Beräkna revenueShare och accumulatedShare
+  let accumulated = 0
+  const categorized: ArticleWithABC[] = sorted.map((article, index) => {
+    const revenueShare = totalRevenue > 0 ? (article.revenue / totalRevenue) * 100 : 0
+    accumulated += revenueShare
+
+    // Kategorisera baserat på ackumulerad andel
+    let category: "A" | "B" | "C"
+    if (accumulated <= 80) {
+      category = "A"
+    } else if (accumulated <= 95) {
+      category = "B"
+    } else {
+      category = "C"
+    }
+
+    // Beräkna margin om grossProfit finns
+    let margin: number | undefined
+    if (article.grossProfit !== undefined && article.revenue > 0) {
+      margin = (article.grossProfit / article.revenue) * 100
+    } else if (article.margin !== undefined) {
+      margin = article.margin
+    }
+
+    return {
+      articleNumber: article.articleNumber,
+      description: article.description,
+      quantity: article.quantity,
+      revenue: article.revenue,
+      grossProfit: article.grossProfit,
+      margin,
+      revenueShare,
+      accumulatedShare: accumulated,
+      category,
+    }
+  })
+
+  return categorized
+}
+
+/**
  * Beräkna Diagnos (Varför)
  */
 export function calculateDiagnosis(

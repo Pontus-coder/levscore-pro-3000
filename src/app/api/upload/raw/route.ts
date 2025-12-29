@@ -251,6 +251,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Gruppera artiklar per leverantör för att spara dem
+    const articlesBySupplier = new Map<string, RawArticleData[]>()
+    for (const article of articles) {
+      const key = article.supplierNumber.trim()
+      if (!articlesBySupplier.has(key)) {
+        articlesBySupplier.set(key, [])
+      }
+      articlesBySupplier.get(key)!.push(article)
+    }
+
     // Spara till databasen
     let imported = 0
     let updated = 0
@@ -285,26 +295,85 @@ export async function POST(request: NextRequest) {
         profile: supplier.profile,
       }
 
+      let supplierId: string
+
       if (existing) {
         // Uppdatera och normalisera supplierNumber i databasen
-        await prisma.supplier.update({
+        const updatedSupplier = await prisma.supplier.update({
           where: { id: existing.id },
           data: {
             ...supplierData,
             supplierNumber: normalizedSupplierNumber, // Säkerställ normaliserat nummer
           },
         })
+        supplierId = updatedSupplier.id
         updated++
         // Ta bort från map så den inte tas bort senare
         existingSuppliersMap.delete(normalizedSupplierNumber.toUpperCase())
       } else {
-        await prisma.supplier.create({
+        const newSupplier = await prisma.supplier.create({
           data: {
             ...supplierData,
             organizationId: ctx.organization.id,
           },
         })
+        supplierId = newSupplier.id
         imported++
+      }
+
+      // Ta bort gamla artiklar för denna leverantör
+      await prisma.article.deleteMany({
+        where: { supplierId },
+      })
+
+      // Spara artiklar för denna leverantör
+      const supplierArticles = articlesBySupplier.get(normalizedSupplierNumber) || []
+      if (supplierArticles.length > 0) {
+        // Sortera artiklar efter omsättning (fallande) för ABC-analys
+        const sortedArticles = [...supplierArticles].sort((a, b) => b.revenue - a.revenue)
+        
+        // Beräkna revenueShare och accumulatedShare
+        let accumulated = 0
+        const articlesToSave = sortedArticles.map((article) => {
+          const revenueShare = supplier.totalRevenue > 0 ? (article.revenue / supplier.totalRevenue) * 100 : 0
+          accumulated += revenueShare
+
+          // Kategorisera baserat på ackumulerad andel
+          let category: string
+          if (accumulated <= 80) {
+            category = "A"
+          } else if (accumulated <= 95) {
+            category = "B"
+          } else {
+            category = "C"
+          }
+
+          // Beräkna margin om grossProfit finns
+          let margin: number | null = null
+          if (article.grossProfit !== undefined && article.revenue > 0) {
+            margin = (article.grossProfit / article.revenue) * 100
+          } else if (article.margin !== undefined) {
+            margin = article.margin
+          }
+
+          return {
+            supplierId,
+            articleNumber: article.articleNumber || `ART-${Math.random().toString(36).substr(2, 9)}`,
+            description: article.description || null,
+            quantity: article.quantity,
+            revenue: article.revenue,
+            grossProfit: article.grossProfit ?? null,
+            margin,
+            revenueShare,
+            accumulatedShare: accumulated,
+            category,
+          }
+        })
+
+        // Spara artiklar i batch
+        await prisma.article.createMany({
+          data: articlesToSave,
+        })
       }
     }
 
