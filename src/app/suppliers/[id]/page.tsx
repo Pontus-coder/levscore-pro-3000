@@ -960,7 +960,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                       <span className="text-sm text-slate-500 font-normal ml-1">/ 10</span>
                     </p>
                     <p className="text-xs text-slate-500 mt-1">
-                      Margin Score: {parseFloat(supplier.marginScore).toFixed(1)} → {supplier.adjustedMarginScore.toFixed(1)}
+                      Margin Score: {parseFloat(supplier.marginScore).toFixed(1)} → {supplier.adjustedMarginScore !== null && supplier.adjustedMarginScore !== undefined ? supplier.adjustedMarginScore.toFixed(1) : parseFloat(supplier.marginScore).toFixed(1)}
                     </p>
                   </div>
                 )}
