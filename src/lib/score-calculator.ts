@@ -41,22 +41,47 @@ export function toNumber(v: unknown): number {
   // Om det bara finns minus-tecken, returnera NaN
   if (s === "-" || s === "+") return NaN
   
-  // Hantera olika decimalseparatorer
-  // Om det finns flera komman eller punkter, det sista är decimalseparator
+  // Hantera olika decimalseparatorer och tusentalsseparatorer
   const lastComma = s.lastIndexOf(",")
   const lastDot = s.lastIndexOf(".")
+  const commaCount = (s.match(/,/g) || []).length
+  const dotCount = (s.match(/\./g) || []).length
   
-  if (lastComma > lastDot) {
-    // Komma är decimalseparator (svensk format: "79 586 567,50")
-    // Ta bort alla punkter (tusentalsseparator) och ersätt sista kommat med punkt
-    s = s.replace(/\./g, "").replace(",", ".")
-  } else if (lastDot > lastComma) {
-    // Punkt är decimalseparator (engelskt format: "79,586,567.50")
-    // Ta bort alla komman (tusentalsseparator)
-    s = s.replace(/,/g, "")
-  } else if (s.includes(",")) {
-    // Bara komman, antag att det är decimalseparator (svensk format utan tusentalsseparator)
-    s = s.replace(",", ".")
+  // Om det finns både komma och punkt
+  if (lastComma !== -1 && lastDot !== -1) {
+    if (lastComma > lastDot) {
+      // Komma är decimalseparator (svensk format: "79 586 567,50")
+      // Ta bort alla punkter (tusentalsseparator) och ersätt sista kommat med punkt
+      s = s.replace(/\./g, "").replace(",", ".")
+    } else {
+      // Punkt är decimalseparator (engelskt format: "79,586,567.50")
+      // Ta bort alla komman (tusentalsseparator)
+      s = s.replace(/,/g, "")
+    }
+  } else if (lastComma !== -1) {
+    // Bara komma - avgör om det är tusentals- eller decimalseparator
+    const afterComma = s.substring(lastComma + 1)
+    const digitsAfterComma = afterComma.replace(/[^\d]/g, "").length
+    
+    if (digitsAfterComma <= 2 && commaCount === 1) {
+      // 1-2 siffror efter kommat = decimalseparator (t.ex. "6,56" eller "6,5")
+      s = s.replace(",", ".")
+    } else {
+      // Fler än 2 siffror efter kommat = tusentalsseparator (t.ex. "6,560" eller "1,270,192")
+      s = s.replace(/,/g, "")
+    }
+  } else if (lastDot !== -1) {
+    // Bara punkt - avgör om det är tusentals- eller decimalseparator
+    const afterDot = s.substring(lastDot + 1)
+    const digitsAfterDot = afterDot.replace(/[^\d]/g, "").length
+    
+    if (digitsAfterDot <= 2 && dotCount === 1) {
+      // 1-2 siffror efter punkten = decimalseparator (t.ex. "6.56" eller "6.5")
+      // Låt den vara som den är
+    } else {
+      // Fler än 2 siffror efter punkten = tusentalsseparator (t.ex. "6.560")
+      s = s.replace(/\./g, "")
+    }
   }
   
   const n = Number(s)
