@@ -429,17 +429,40 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               <div className="space-y-5">
                 {scores.map((score) => {
                   const percent = (score.value / score.max) * 100
+                  const originalPercent = score.originalValue !== undefined 
+                    ? (score.originalValue / score.max) * 100 
+                    : percent
+                  const hasAdjustment = score.hasAdjustment || false
+                  
                   return (
                     <div key={score.name}>
                       <div className="flex justify-between items-end mb-1.5">
                         <div>
-                          <span className="text-slate-200 font-medium">{score.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-200 font-medium">{score.label}</span>
+                            {hasAdjustment && (
+                              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium" title="Justerad med bonus/anbudsstöd">
+                                +
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-slate-500">{score.desc}</p>
                         </div>
                         <div className="text-right">
-                          <span className={`text-lg font-bold ${getScoreColor(percent)}`}>
-                            {score.value.toFixed(1)}
-                          </span>
+                          {hasAdjustment && score.originalValue !== undefined ? (
+                            <div className="flex items-center gap-1">
+                              <span className={`text-sm font-medium ${getScoreColor(originalPercent)} line-through opacity-60`}>
+                                {score.originalValue.toFixed(1)}
+                              </span>
+                              <span className={`text-lg font-bold ${getScoreColor(percent)}`}>
+                                {score.value.toFixed(1)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className={`text-lg font-bold ${getScoreColor(percent)}`}>
+                              {score.value.toFixed(1)}
+                            </span>
+                          )}
                           <span className="text-slate-500 text-sm ml-1">/ {score.max}</span>
                         </div>
                       </div>
@@ -451,10 +474,29 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                           <div className="w-1/4 border-r border-slate-600/50" />
                           <div className="w-1/4" />
                         </div>
+                        {/* Original value bar (lighter, behind) */}
+                        {hasAdjustment && score.originalValue !== undefined && originalPercent < percent && (
+                          <div
+                            className={`h-full ${getScoreBg(originalPercent)} opacity-40 transition-all duration-500 absolute z-0`}
+                            style={{ width: `${Math.min(originalPercent, 100)}%` }}
+                          />
+                        )}
+                        {/* Adjusted value bar (full opacity, on top) */}
                         <div
                           className={`h-full ${getScoreBg(percent)} transition-all duration-500 relative z-10`}
                           style={{ width: `${Math.min(percent, 100)}%` }}
                         />
+                        {/* Adjustment indicator (dashed line or different color for the added portion) */}
+                        {hasAdjustment && score.originalValue !== undefined && originalPercent < percent && (
+                          <div
+                            className="h-full bg-emerald-400/30 border-r-2 border-emerald-400 border-dashed transition-all duration-500 absolute z-20"
+                            style={{ 
+                              left: `${Math.min(originalPercent, 100)}%`,
+                              width: `${Math.min(percent - originalPercent, 100 - originalPercent)}%`
+                            }}
+                            title={`Tillägg: ${(score.value - score.originalValue).toFixed(1)} poäng`}
+                          />
+                        )}
                       </div>
                     </div>
                   )
