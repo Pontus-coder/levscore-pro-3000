@@ -119,6 +119,7 @@ model Supplier {
   rowCount          Int            @default(0)
   totalQuantity     Int            @default(0)
   totalRevenue      Float          @default(0)
+  totalTB           Float          @default(0)  // Total Bruttovinst (för korrekt TG-beräkning)
   avgMargin         Float          @default(0)
   salesScore        Float          @default(0)
   assortmentScore   Float          @default(0)
