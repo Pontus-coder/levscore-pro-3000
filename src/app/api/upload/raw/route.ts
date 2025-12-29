@@ -179,6 +179,16 @@ export async function POST(request: NextRequest) {
     const totalRevenueFromArticles = articles.reduce((sum, a) => sum + a.revenue, 0)
     console.log(`[RAW IMPORT] Total omsättning från artiklar (innan aggregering): ${totalRevenueFromArticles.toLocaleString('sv-SE')} kr`)
     console.log(`[RAW IMPORT] Antal artiklar: ${articles.length}`)
+    console.log(`[RAW IMPORT] Antal rader i Excel-filen: ${data.length}`)
+    console.log(`[RAW IMPORT] Antal rader som hoppades över (tomma leverantörsnummer/namn): ${data.length - articles.length}`)
+    
+    // Debug: Visa exempel på de första 5 artiklarna
+    if (articles.length > 0) {
+      console.log(`[RAW IMPORT] Exempel på första 5 artiklarna:`)
+      articles.slice(0, 5).forEach((a, idx) => {
+        console.log(`  ${idx + 1}. Lev: ${a.supplierNumber}, Belopp: ${a.revenue.toLocaleString('sv-SE')} kr, TB: ${a.grossProfit?.toLocaleString('sv-SE') || 'N/A'} kr`)
+      })
+    }
 
     // Aggregera till leverantörsnivå
     const aggregated = aggregateBySupplier(articles)
@@ -348,6 +358,9 @@ export async function POST(request: NextRequest) {
           fileTotalRevenue: fileTotalRevenue,
           beforeTotalRevenue: beforeTotalRevenue,
           sampleValues: sampleDebugInfo, // Exempel på vad som faktiskt läses från Excel
+          rowsInFile: data.length,
+          rowsProcessed: articles.length,
+          rowsSkipped: data.length - articles.length,
         }
       },
     })

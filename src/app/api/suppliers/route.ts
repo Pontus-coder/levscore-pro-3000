@@ -52,12 +52,19 @@ export async function GET(request: NextRequest) {
     })
 
     // Calculate aggregated stats
+    const totalRevenue = suppliers.reduce((sum, s) => sum + Number(s.totalRevenue), 0)
+    const totalTB = suppliers.reduce((sum, s) => sum + Number(s.totalTB || 0), 0)
+    
+    // Korrekt genomsnittlig TG: (Total TB / Total Omsättning) * 100
+    // Inte genomsnitt av procenten (det ger fel resultat)
+    const avgMargin = totalRevenue > 0 
+      ? (totalTB / totalRevenue) * 100 
+      : 0
+    
     const stats = {
       totalSuppliers: suppliers.length,
-      totalRevenue: suppliers.reduce((sum, s) => sum + Number(s.totalRevenue), 0),
-      avgMargin: suppliers.length > 0 
-        ? suppliers.reduce((sum, s) => sum + Number(s.avgMargin), 0) / suppliers.length 
-        : 0,
+      totalRevenue,
+      avgMargin,
       avgTotalScore: suppliers.length > 0
         ? suppliers.reduce((sum, s) => sum + Number(s.totalScore), 0) / suppliers.length
         : 0,

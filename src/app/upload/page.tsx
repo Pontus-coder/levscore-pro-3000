@@ -143,6 +143,9 @@ export default function UploadPage() {
       totalRevenueFromAggregated: number
       fileTotalRevenue: number
       beforeTotalRevenue: number
+      rowsInFile?: number
+      rowsProcessed?: number
+      rowsSkipped?: number
       sampleValues?: {
         revenue: { raw: unknown; type: string; parsed: number; column: string }
         tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
@@ -409,6 +412,20 @@ export default function UploadPage() {
                       <span className="text-slate-500">Efter import (från databas):</span>
                       <span className="text-slate-200 ml-2 font-semibold">{importStats.finalTotalRevenue?.toLocaleString('sv-SE')} kr</span>
                     </div>
+                    {importStats.debug.rowsInFile !== undefined && (
+                      <div className="col-span-2 border-t border-slate-700 pt-2">
+                        <span className="text-slate-500">Rader i filen:</span>
+                        <span className="text-slate-200 ml-2">{importStats.debug.rowsInFile.toLocaleString('sv-SE')}</span>
+                        <span className="text-slate-500 ml-4">Bearbetade:</span>
+                        <span className="text-slate-200 ml-2">{importStats.debug.rowsProcessed?.toLocaleString('sv-SE') || 0}</span>
+                        {importStats.debug.rowsSkipped !== undefined && importStats.debug.rowsSkipped > 0 && (
+                          <>
+                            <span className="text-slate-500 ml-4">Hoppades över:</span>
+                            <span className="text-yellow-400 ml-2">{importStats.debug.rowsSkipped.toLocaleString('sv-SE')}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Visa exempel på värden */}
