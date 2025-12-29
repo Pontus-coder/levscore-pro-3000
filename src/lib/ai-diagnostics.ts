@@ -39,6 +39,22 @@ export interface SupplierData {
   revenueShare: number
   // Google Trends data (valfritt)
   trendsContext?: string
+  // Artikeldata för ABC-analys
+  articleDistribution?: {
+    totalArticles: number
+    aArticles: number      // Antal A-artiklar
+    bArticles: number      // Antal B-artiklar
+    cArticles: number      // Antal C-artiklar
+    aArticlePercentage: number  // % av totalt antal artiklar som är A
+    topBArticles?: Array<{      // Topp B-artiklar med potential
+      articleNumber: string
+      description: string | null
+      revenue: number
+      quantity: number          // Antal sålda (viktigt för förbrukning/kem)
+      revenueShare: number
+      margin: number | null
+    }>
+  }
 }
 
 export interface AIAnalysis {
@@ -95,7 +111,16 @@ Score-systemet:
 Tier-systemet:
 - A-tier: Topp 80% av omsättningen (kärnleverantörer)
 - B-tier: Nästa 15% (viktiga men inte dominerande)
-- C-tier: Sista 5% (svans, potentiellt ineffektiva)`
+- C-tier: Sista 5% (svans, potentiellt ineffektiva)
+
+ABC-analys och sortimentsoptimering:
+- Målsättning: 20% av artiklarna ska vara A-artiklar (står för 80% av omsättningen)
+- Om A-artiklar är <20%: Identifiera B-artiklar med potential att flytta upp till A-nivå
+- Ta hänsyn till BÅDE omsättning OCH antal sålda artiklar:
+  * Hög omsättning = bra för stora produkter (t.ex. skurmaskiner, maskiner)
+  * Hög kvantitet = bra för förbrukning/kem (produkten rör på sig, återkommande försäljning, potential för uppsäljning)
+- Analysera B-artiklar med antingen hög omsättning+bra TG ELLER hög kvantitet (även om omsättning är låg)
+- Ge konkreta rekommendationer om vilka B-artiklar som bör prioriteras för att öka A-artikelprocenten`
         },
         {
           role: "user",
@@ -160,6 +185,38 @@ function buildPrompt(supplier: SupplierData): string {
 
 🏷️ KLASSIFICERING: ${supplier.tier || "Ej klassificerad"}`
 
+  // Lägg till artikeldata för ABC-analys om det finns
+  if (supplier.articleDistribution) {
+    const dist = supplier.articleDistribution
+    prompt += `
+
+📦 ARTIKELANALYS (ABC):
+- Totalt antal artiklar: ${dist.totalArticles}
+- A-artiklar: ${dist.aArticles} (${dist.aArticlePercentage.toFixed(1)}% av totalt) - står för 80% av omsättningen
+- B-artiklar: ${dist.bArticles}
+- C-artiklar: ${dist.cArticles}
+
+🎯 ABC-STRATEGI:
+- Målsättning: 20% av artiklarna ska vara A-artiklar (står för 80% av omsättningen)
+- Nuvarande: ${dist.aArticlePercentage.toFixed(1)}% är A-artiklar
+${dist.aArticlePercentage < 20 ? `- GAP: ${(20 - dist.aArticlePercentage).toFixed(1)}% under målsättningen - identifiera B-artiklar med potential!` : ""}
+${dist.topBArticles && dist.topBArticles.length > 0 ? `
+- Topp B-artiklar med potential att flytta upp till A-nivå:
+${dist.topBArticles.map((a, i) => `  ${i + 1}. ${a.articleNumber}${a.description ? ` (${a.description})` : ""}: ${formatCurrency(a.revenue)} (${a.revenueShare.toFixed(1)}% av omsättning, ${a.quantity.toLocaleString("sv-SE")} st sålda${a.margin !== null ? `, TG: ${a.margin.toFixed(1)}%` : ""})`).join("\n")}
+` : ""}
+
+⚠️ VIKTIGT - ABC-ANALYS OCH KVANTITET:
+- Om A-artiklar är <20% av totalt antal: Identifiera B-artiklar med potential att flytta upp till A-nivå
+- Ta hänsyn till BÅDE omsättning OCH antal sålda artiklar:
+  * Hög omsättning = bra för stora produkter (t.ex. skurmaskiner)
+  * Hög kvantitet = bra för förbrukning/kem (produkten rör på sig, återkommande försäljning)
+- Fokusera på B-artiklar med antingen:
+  * Hög omsättning OCH bra TG (kan skalas upp)
+  * Hög kvantitet även om omsättning är låg (produkten rör på sig, potential för uppsäljning)
+- Ge konkreta rekommendationer om vilka B-artiklar som bör prioriteras för att öka A-artikelprocenten
+- Förklara HUR dessa B-artiklar kan flyttas upp (t.ex. bättre exponering, marknadsföring, komplettering, uppsäljning)`
+  }
+
   // Lägg till trenddata om det finns
   if (supplier.trendsContext) {
     prompt += `
@@ -183,11 +240,11 @@ ${supplier.trendsContext}
 
 Ge din analys som JSON med exakt detta format:
 {
-  "diagnosis": "2-3 meningar som förklarar VARFÖR leverantören presterar som den gör. Var specifik om vad siffrorna betyder.${supplier.trendsContext ? " MÅSTE inkludera konkreta trenddata med siffror (t.ex. 'Sökintresset för X är Y/100 och har ökat Z%')." : ""}",
-  "opportunities": "2-3 meningar om VAR de största möjligheterna finns.${supplier.trendsContext ? " MÅSTE nämna specifika sökord och deras trender med siffror. Använd relaterade sökningar för konkreta produktförslag (t.ex. 'Baserat på relaterade sökningar som X och Y, överväg att lägga till...')." : ""} Koppla till konkreta åtgärder.",
-  "action": "EN konkret, prioriterad rekommendation som börjar med ett verb.${supplier.trendsContext ? " Basera på trenddata - nämn specifika kategorier som trendar uppåt med siffror (t.ex. 'Utöka sortimentet med produkter relaterade till X som har ökat Y%')." : ""}",
+  "diagnosis": "2-3 meningar som förklarar VARFÖR leverantören presterar som den gör. Var specifik om vad siffrorna betyder.${supplier.articleDistribution ? ` MÅSTE inkludera ABC-analys: "X% av artiklarna är A-artiklar (målsättning 20%)" och identifiera gapet.` : ""}${supplier.trendsContext ? " MÅSTE inkludera konkreta trenddata med siffror (t.ex. 'Sökintresset för X är Y/100 och har ökat Z%')." : ""}",
+  "opportunities": "2-3 meningar om VAR de största möjligheterna finns.${supplier.articleDistribution && supplier.articleDistribution.topBArticles && supplier.articleDistribution.topBArticles.length > 0 ? ` MÅSTE nämna specifika B-artiklar med potential (t.ex. 'Artikel X har sålts Y st gånger trots låg omsättning - produkten rör på sig och har potential för uppsäljning' eller 'Artikel Y har hög omsättning och bra TG - kan skalas upp').` : ""}${supplier.trendsContext ? " MÅSTE nämna specifika sökord och deras trender med siffror. Använd relaterade sökningar för konkreta produktförslag (t.ex. 'Baserat på relaterade sökningar som X och Y, överväg att lägga till...')." : ""} Koppla till konkreta åtgärder.",
+  "action": "EN konkret, prioriterad rekommendation som börjar med ett verb.${supplier.articleDistribution && supplier.articleDistribution.aArticlePercentage < 20 ? ` Fokusera på att öka A-artikelprocenten från ${supplier.articleDistribution.aArticlePercentage.toFixed(1)}% till 20% genom att lyfta B-artiklar. Nämn specifika B-artiklar om de finns listade.` : ""}${supplier.trendsContext ? " Basera på trenddata - nämn specifika kategorier som trendar uppåt med siffror (t.ex. 'Utöka sortimentet med produkter relaterade till X som har ökat Y%')." : ""}",
   "priority": "high/medium/low baserat på potential och nuvarande position",
-  "confidence": ${supplier.trendsContext ? "80-95" : "70-90"} beroende på hur tydlig datan är
+  "confidence": ${supplier.trendsContext || supplier.articleDistribution ? "80-95" : "70-90"} beroende på hur tydlig datan är
 }`
 
   return prompt

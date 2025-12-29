@@ -74,6 +74,69 @@ export async function GET(
       trendsForAI = formatTrendsForAI(trendsMap)
     }
 
+    // Hämta artikeldata för ABC-analys
+    const articles = await prisma.article.findMany({
+      where: { supplierId: id },
+      orderBy: { revenue: "desc" },
+    })
+
+    let articleDistribution: SupplierData["articleDistribution"] | undefined
+    if (articles.length > 0) {
+      const aArticles = articles.filter(a => a.category === "A")
+      const bArticles = articles.filter(a => a.category === "B")
+      const cArticles = articles.filter(a => a.category === "C")
+
+      // Identifiera topp B-artiklar med potential
+      // Ta hänsyn till BÅDE omsättning OCH kvantitet
+      const topBByRevenue = bArticles
+        .filter(a => a.revenue > 0 && (a.margin === null || a.margin >= 20))
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5)
+
+      const topBByQuantity = bArticles
+        .filter(a => a.quantity > 0)
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 5)
+
+      // Kombinera och deduplicera, prioritera artiklar med både hög omsättning OCH hög kvantitet
+      const combinedBArticles = new Map<string, typeof bArticles[0] & { score: number }>()
+      
+      for (const article of bArticles) {
+        if (article.revenue > 0 || article.quantity > 0) {
+          // Beräkna ett "potential score" baserat på både omsättning och kvantitet
+          // Normalisera omsättning (0-1) och kvantitet (0-1) och kombinera
+          const maxRevenue = Math.max(...bArticles.map(a => a.revenue), 1)
+          const maxQuantity = Math.max(...bArticles.map(a => a.quantity), 1)
+          const revenueScore = article.revenue / maxRevenue
+          const quantityScore = article.quantity / maxQuantity
+          const combinedScore = (revenueScore * 0.6) + (quantityScore * 0.4) // 60% omsättning, 40% kvantitet
+          
+          combinedBArticles.set(article.id, { ...article, score: combinedScore })
+        }
+      }
+
+      const topBArticles = Array.from(combinedBArticles.values())
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+        .map(a => ({
+          articleNumber: a.articleNumber,
+          description: a.description,
+          revenue: a.revenue,
+          quantity: a.quantity,
+          revenueShare: a.revenueShare,
+          margin: a.margin,
+        }))
+
+      articleDistribution = {
+        totalArticles: articles.length,
+        aArticles: aArticles.length,
+        bArticles: bArticles.length,
+        cArticles: cArticles.length,
+        aArticlePercentage: (aArticles.length / articles.length) * 100,
+        topBArticles: topBArticles.length > 0 ? topBArticles : undefined,
+      }
+    }
+
     // Förbered data för AI-analys
     const supplierData: SupplierData = {
       name: supplier.name,
@@ -89,6 +152,8 @@ export async function GET(
       totalScore: supplier.totalScore,
       tier: supplier.tier,
       revenueShare: supplier.revenueShare,
+      // Lägg till artikeldata
+      articleDistribution,
       // Lägg till trenddata
       trendsContext: trendsForAI || undefined,
     }
