@@ -75,6 +75,7 @@ export async function GET(
       adjustedTotalTB: adjusted.adjustedTotalTB,
       adjustedAvgMargin: adjusted.adjustedAvgMargin,
       adjustedMarginScore: adjusted.adjustedMarginScore,
+      totalTB: supplier.totalTB.toString(), // Ensure totalTB is a string for consistency
     })
   } catch (error) {
     console.error("Error fetching supplier:", error)
