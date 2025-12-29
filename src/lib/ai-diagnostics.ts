@@ -174,7 +174,9 @@ function buildPrompt(supplier: SupplierData): string {
 - Andel av total omsättning: ${(supplier.revenueShare * 100).toFixed(1)}%
 - Täckningsgrad (TG): ${supplier.avgMargin.toFixed(1)}%
 - Antal artiklar: ${supplier.rowCount}
+- Totalt antal sålda: ${supplier.totalQuantity.toLocaleString("sv-SE")}
 - Omsättning/artikel: ${formatCurrency(supplier.totalRevenue / Math.max(supplier.rowCount, 1))}
+- Antal/artikel (snitt): ${(supplier.totalQuantity / Math.max(supplier.rowCount, 1)).toFixed(1)}
 
 📈 SCORES:
 - Sales Score: ${supplier.salesScore.toFixed(1)}/3 (${salesPct}% av max)
