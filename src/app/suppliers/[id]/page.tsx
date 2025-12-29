@@ -776,7 +776,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                   </label>
                   <Input
                     type="text"
-                    placeholder="T.ex. 'Årlig bonus 2024' eller 'Anbudsstöd Q1'"
+                    placeholder="T.ex. 'Årlig bonus 2025' eller 'Anbudsstöd Q1'"
                     value={bonusComment}
                     onChange={(e) => setBonusComment(e.target.value)}
                     className="w-full"

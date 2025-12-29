@@ -176,7 +176,7 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-800">
+      <div className="rounded-xl border border-slate-800">
         <table className="w-full">
           <thead>
             <tr className="bg-slate-900/80 border-b border-slate-800">
