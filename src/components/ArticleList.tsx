@@ -87,7 +87,17 @@ export function ArticleList({ supplierId }: ArticleListProps) {
   return (
     <Card variant="glass">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-slate-100">Artiklar</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-100">Artiklar</h2>
+          <div className="text-xs text-slate-400 mt-1">
+            A-artiklar: <span className="text-emerald-400 font-medium">{aArticles.length}</span> av {articles.length} totalt
+            {aArticles.length > 0 && (
+              <span className="text-slate-500 ml-1">
+                ({(aArticles.length / articles.length * 100).toFixed(0)}%)
+              </span>
+            )}
+          </div>
+        </div>
         {hasBCArticles && (
           <button
             onClick={() => setShowAll(!showAll)}
