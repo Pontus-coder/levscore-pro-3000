@@ -73,7 +73,11 @@ export async function POST(request: NextRequest) {
     })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
-    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+    // Använd raw: false för att konvertera till JavaScript-typer (nummer blir number, inte string)
+    const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      raw: false, // Konvertera till JavaScript-typer
+      defval: null
+    })
 
     if (!data || data.length === 0) {
       return NextResponse.json({ error: "No data found in file" }, { status: 400 })
@@ -126,6 +130,42 @@ export async function POST(request: NextRequest) {
         { error: "No valid article data found" },
         { status: 400 }
       )
+    }
+
+    // Debug: Visa exempel på värden för att se vad som faktiskt läses
+    let sampleDebugInfo: {
+      revenue: { raw: unknown; type: string; parsed: number; column: string }
+      tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+    } | null = null
+    
+    if (articles.length > 0) {
+      const sampleArticle = articles[0]
+      const sampleRow = data.find(row => {
+        const rowSupplierNumber = String(row[mapping.supplierNumber] || "").trim()
+        return rowSupplierNumber === sampleArticle.supplierNumber
+      })
+      
+      if (sampleRow) {
+        const rawRevenue = sampleRow[mapping.revenue]
+        const rawTB = mapping.grossProfit ? sampleRow[mapping.grossProfit] : null
+        sampleDebugInfo = {
+          revenue: {
+            raw: rawRevenue,
+            type: typeof rawRevenue,
+            parsed: sampleArticle.revenue,
+            column: mapping.revenue
+          },
+          ...(rawTB && {
+            tb: {
+              raw: rawTB,
+              type: typeof rawTB,
+              parsed: sampleArticle.grossProfit,
+              column: mapping.grossProfit
+            }
+          })
+        }
+        console.log(`[RAW IMPORT] Exempel på värden från Excel:`, sampleDebugInfo)
+      }
     }
 
     // Debug: Räkna total omsättning från artiklar
@@ -300,6 +340,7 @@ export async function POST(request: NextRequest) {
           totalRevenueFromAggregated: totalRevenueFromAggregated,
           fileTotalRevenue: fileTotalRevenue,
           beforeTotalRevenue: beforeTotalRevenue,
+          sampleValues: sampleDebugInfo, // Exempel på vad som faktiskt läses från Excel
         }
       },
     })

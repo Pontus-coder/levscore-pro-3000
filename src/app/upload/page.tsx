@@ -143,6 +143,10 @@ export default function UploadPage() {
       totalRevenueFromAggregated: number
       fileTotalRevenue: number
       beforeTotalRevenue: number
+      sampleValues?: {
+        revenue: { raw: unknown; type: string; parsed: number; column: string }
+        tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+      } | null
     }
   } | null>(null)
 
@@ -406,6 +410,37 @@ export default function UploadPage() {
                       <span className="text-slate-200 ml-2 font-semibold">{importStats.finalTotalRevenue?.toLocaleString('sv-SE')} kr</span>
                     </div>
                   </div>
+                  
+                  {/* Visa exempel på värden */}
+                  {importStats.debug.sampleValues && (
+                    <div className="mt-4 pt-4 border-t border-slate-700">
+                      <h4 className="text-xs font-semibold text-slate-300 mb-2">Exempel på värden från Excel:</h4>
+                      <div className="text-xs text-slate-400 space-y-1">
+                        <div>
+                          <span className="text-slate-500">Belopp (raw):</span>
+                          <span className="text-slate-200 ml-2">{String(importStats.debug.sampleValues.revenue.raw)}</span>
+                          <span className="text-slate-500 ml-2">(typ: {importStats.debug.sampleValues.revenue.type})</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Belopp (parsat):</span>
+                          <span className="text-slate-200 ml-2">{importStats.debug.sampleValues.revenue.parsed.toLocaleString('sv-SE')} kr</span>
+                        </div>
+                        {importStats.debug.sampleValues.tb && (
+                          <>
+                            <div>
+                              <span className="text-slate-500">TB (raw):</span>
+                              <span className="text-slate-200 ml-2">{String(importStats.debug.sampleValues.tb.raw)}</span>
+                              <span className="text-slate-500 ml-2">(typ: {importStats.debug.sampleValues.tb.type})</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">TB (parsat):</span>
+                              <span className="text-slate-200 ml-2">{importStats.debug.sampleValues.tb.parsed?.toLocaleString('sv-SE')} kr</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             )}
