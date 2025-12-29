@@ -85,24 +85,38 @@ export async function validateFileMagicBytes(file: File): Promise<FileValidation
   
   // CSV files don't have magic bytes, validate differently
   if (ext === '.csv') {
-    // Check if file starts with printable ASCII characters
-    const buffer = await file.slice(0, 1024).arrayBuffer()
+    // Read a larger chunk to validate UTF-8 encoding
+    const buffer = await file.slice(0, 4096).arrayBuffer()
     const bytes = new Uint8Array(buffer)
-    for (let i = 0; i < Math.min(bytes.length, 100); i++) {
-      const byte = bytes[i]
-      // Allow printable ASCII, newlines, carriage returns, tabs
-      if (byte !== 0x09 && byte !== 0x0A && byte !== 0x0D && (byte < 0x20 || byte > 0x7E)) {
-        // Allow UTF-8 BOM
-        if (i === 0 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
-          continue
-        }
-        return {
-          valid: false,
-          error: 'Ogiltig CSV-fil. Filen innehåller ogiltiga tecken.',
+    
+    // Check for UTF-8 BOM and skip it if present
+    let startIndex = 0
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+      startIndex = 3
+    }
+    
+    // Try to decode as UTF-8 (this will handle Swedish characters like å, ä, ö)
+    try {
+      const decoder = new TextDecoder('utf-8', { fatal: true })
+      const textBytes = bytes.slice(startIndex)
+      decoder.decode(textBytes)
+      // If decoding succeeds, it's valid UTF-8
+      return { valid: true }
+    } catch {
+      // If UTF-8 decoding fails, check if it's at least valid ASCII
+      // (fallback for files that might be ASCII-only)
+      for (let i = startIndex; i < Math.min(bytes.length, startIndex + 100); i++) {
+        const byte = bytes[i]
+        // Allow printable ASCII, newlines, carriage returns, tabs
+        if (byte !== 0x09 && byte !== 0x0A && byte !== 0x0D && (byte < 0x20 || byte > 0x7E)) {
+          return {
+            valid: false,
+            error: 'Ogiltig CSV-fil. Filen innehåller ogiltiga tecken.',
+          }
         }
       }
+      return { valid: true }
     }
-    return { valid: true }
   }
   
   // Read first 4 bytes for magic number check

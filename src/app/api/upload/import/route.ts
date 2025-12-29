@@ -115,10 +115,13 @@ export async function POST(request: NextRequest) {
     for (const row of jsonData) {
       const rowObj = row as Record<string, unknown>
       
-      const supplierNumber = parseStringValue(rowObj[mapping.supplierNumber], 50)
-      const supplierName = parseStringValue(rowObj[mapping.name], 200)
+      const supplierNumber = parseStringValue(rowObj[mapping.supplierNumber], 50)?.trim() || ""
+      const supplierName = parseStringValue(rowObj[mapping.name], 200)?.trim() || ""
       
-      if (!supplierNumber || !supplierName) continue
+      // Skippa rader utan leverantörsnummer eller leverantörsnamn (efter trim)
+      if (!supplierNumber || !supplierName || supplierNumber.length === 0 || supplierName.length === 0) {
+        continue
+      }
       
       // Hämta grunddata
       const baseData = {
@@ -160,32 +163,83 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Hämta alla befintliga leverantörer en gång för snabb lookup
+    const allExistingSuppliersForLookup = await prisma.supplier.findMany({
+      where: {
+        organizationId: ctx.organization.id,
+      },
+    })
+
+    // Skapa en map med normaliserade nummer som nyckel
+    const existingSuppliersMap = new Map<string, typeof allExistingSuppliersForLookup[0]>()
+    for (const supplier of allExistingSuppliersForLookup) {
+      const normalized = supplier.supplierNumber.trim().toUpperCase()
+      if (!existingSuppliersMap.has(normalized)) {
+        existingSuppliersMap.set(normalized, supplier)
+      }
+    }
+
     // Upsert suppliers
     let created = 0
     let updated = 0
+    const supplierNumbersInFile = new Set<string>() // Samla alla leverantörsnummer från filen
 
     for (const supplier of suppliers) {
-      const existing = await prisma.supplier.findUnique({
-        where: {
-          supplierNumber_organizationId: {
-            supplierNumber: supplier.supplierNumber,
-            organizationId: ctx.organization.id,
-          },
-        },
-      })
+      // Normalisera leverantörsnummer (trim för att undvika matchningsproblem)
+      const normalizedSupplierNumber = supplier.supplierNumber.trim()
+      supplierNumbersInFile.add(normalizedSupplierNumber)
+
+      // Hitta befintlig leverantör med normaliserad matchning
+      const existing = existingSuppliersMap.get(normalizedSupplierNumber.toUpperCase())
 
       if (existing) {
         await prisma.supplier.update({
           where: { id: existing.id },
-          data: supplier,
+          data: {
+            ...supplier,
+            supplierNumber: normalizedSupplierNumber,
+          },
         })
         updated++
       } else {
         await prisma.supplier.create({
-          data: supplier,
+          data: {
+            ...supplier,
+            supplierNumber: normalizedSupplierNumber,
+          },
         })
         created++
       }
+    }
+
+    // Ta bort alla leverantörer som INTE finns i den nya filen (full refresh)
+    // Använd samma data som vi redan hämtat
+    const normalizedFileNumbers = new Set(
+      Array.from(supplierNumbersInFile)
+        .map(n => n.trim().toUpperCase())
+        .filter(n => n.length > 0) // Filtrera bort tomma
+    )
+
+    // Hitta leverantörer som ska tas bort (normalisera för jämförelse)
+    const suppliersToDelete = allExistingSuppliersForLookup.filter(
+      existing => {
+        const normalizedExisting = existing.supplierNumber.trim().toUpperCase()
+        // Ta bort om: inte i filen, eller om leverantörsnummer är tomt
+        return normalizedExisting.length === 0 || !normalizedFileNumbers.has(normalizedExisting)
+      }
+    )
+
+    // Ta bort leverantörer som inte finns i filen
+    let deletedCount = 0
+    if (suppliersToDelete.length > 0) {
+      const deleted = await prisma.supplier.deleteMany({
+        where: {
+          id: {
+            in: suppliersToDelete.map(s => s.id),
+          },
+        },
+      })
+      deletedCount = deleted.count
     }
 
     // Log the upload
@@ -205,7 +259,9 @@ export async function POST(request: NextRequest) {
       stats: {
         suppliersCreated: created,
         suppliersUpdated: updated,
+        suppliersDeleted: deletedCount,
         totalSuppliers: suppliers.length,
+        existingBeforeDelete: allExistingSuppliersForLookup.length,
       },
     })
   } catch (error) {

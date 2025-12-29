@@ -16,12 +16,35 @@ export const CFG = {
 
 /**
  * Hjälpfunktion: gör om värden till number robust
+ * Hanterar Excel-formatering: tusentalsseparatorer, decimalseparatorer, etc.
  */
 export function toNumber(v: unknown): number {
   if (v === null || v === undefined || v === "") return NaN
   if (typeof v === "number") return v
 
-  const s = String(v).trim().replace(/\s+/g, "").replace(",", ".")
+  let s = String(v).trim()
+  
+  // Ta bort alla mellanslag (tusentalsseparator)
+  s = s.replace(/\s+/g, "")
+  
+  // Hantera olika decimalseparatorer
+  // Om det finns flera komman eller punkter, det sista är decimalseparator
+  const lastComma = s.lastIndexOf(",")
+  const lastDot = s.lastIndexOf(".")
+  
+  if (lastComma > lastDot) {
+    // Komma är decimalseparator (svensk format: "79 586 567,50")
+    // Ta bort alla punkter (tusentalsseparator) och ersätt sista kommat med punkt
+    s = s.replace(/\./g, "").replace(",", ".")
+  } else if (lastDot > lastComma) {
+    // Punkt är decimalseparator (engelskt format: "79,586,567.50")
+    // Ta bort alla komman (tusentalsseparator)
+    s = s.replace(/,/g, "")
+  } else if (s.includes(",")) {
+    // Bara komman, antag att det är decimalseparator (svensk format utan tusentalsseparator)
+    s = s.replace(",", ".")
+  }
+  
   const n = Number(s)
   return Number.isFinite(n) ? n : NaN
 }
@@ -49,6 +72,7 @@ export interface AggregatedSupplier {
   rowCount: number          // Antal rader/artiklar
   totalQuantity: number     // Summa antal
   totalRevenue: number      // Summa belopp
+  totalTB: number           // Total Bruttovinst (för korrekt TG-beräkning)
   avgMargin: number         // Snitt-TG
 }
 
@@ -123,6 +147,7 @@ export function aggregateBySupplier(articles: RawArticleData[]): AggregatedSuppl
       rowCount: s.rows,
       totalQuantity: s.totalQuantity,
       totalRevenue: s.totalRevenue,
+      totalTB: s.totalGrossProfit, // Returnera totalTB för att spara i databasen
       avgMargin,
     }
   })
@@ -246,7 +271,104 @@ export function calculateAction(
     return "PAUSA: Lägg inte tid här nu. Fokusera på andra leverantörer."
   }
 
-  return "UTVÄRDERA: Kräver manuell bedömning."
+  // Kategorisera UTVÄRDERA baserat på varför det är osäkert
+  const hasLowData = rows < CFG.ROWS_MIN_ACTIVITY || (!isFinite(revenue) || revenue < 20000)
+  const hasMixedSignals = 
+    (isFinite(salesScore) && salesScore >= CFG.SALES_OK && lowEff) ||
+    (isFinite(efficiencyScore) && efficiencyScore >= CFG.EFF_OK && lowSales) ||
+    (isFinite(marginScore) && marginScore >= 2 && (lowSales || lowEff))
+  const hasPotential = 
+    (isFinite(salesScore) && salesScore >= 0.5) ||
+    (isFinite(efficiencyScore) && efficiencyScore >= 0.5) ||
+    (isFinite(revenue) && revenue >= 30000 && revenue < CFG.REV_OK)
+
+  if (hasLowData) {
+    return "UTVÄRDERA: LÅG DATA - För få artiklar/transaktioner för säker bedömning. Testa fler produkter eller vänta på mer data."
+  }
+
+  if (hasMixedSignals) {
+    return "UTVÄRDERA: MIXAD SIGNAL - Bra på vissa områden, svag på andra. Analysera toppartiklar och identifiera mönster."
+  }
+
+  if (hasPotential) {
+    return "UTVÄRDERA: POTENTIAL - Kan vara intressant men osäker. Kolla Google Trends och marknadsmöjligheter."
+  }
+
+  return "UTVÄRDERA: KONFLIKT - Signalerna säger olika saker. Kräver manuell bedömning av toppartiklar och kompletteringsmöjligheter."
+}
+
+/**
+ * Extrahera UTVÄRDERA-typ och checklista från action-sträng
+ */
+export function getEvaluateChecklist(action: string | null): { type: string; checklist: string[] } | null {
+  if (!action) return null
+  
+  // Normalisera strängen för matchning
+  const upperAction = action.toUpperCase().trim()
+  
+  // Kolla om det börjar med UTVÄRDERA (med eller utan kolon, med eller utan åäö)
+  if (!upperAction.startsWith("UTVÄRDERA") && !upperAction.startsWith("UTVARDERA")) {
+    return null
+  }
+  
+  // Matcha specifika typer (kolla först för mer specifika)
+  if (upperAction.includes("LÅG DATA") || upperAction.includes("LAG DATA")) {
+    return {
+      type: "LÅG DATA",
+      checklist: [
+        "Har <5 artiklar? → Testa fler produkter",
+        "Låg omsättning? → Vänta på mer data eller testa marknadsföring",
+        "För få transaktioner? → Öka exponering eller vänta"
+      ]
+    }
+  }
+
+  if (upperAction.includes("MIXAD SIGNAL") || upperAction.includes("MIXAD")) {
+    return {
+      type: "MIXAD SIGNAL",
+      checklist: [
+        "Analysera toppartiklar - vad fungerar?",
+        "Identifiera mönster - varför är vissa bra och andra svaga?",
+        "Kolla Google Trends för kategorier som presterar bra",
+        "Överväg att fokusera på styrkor och minimera svagheter"
+      ]
+    }
+  }
+
+  if (upperAction.includes("POTENTIAL")) {
+    return {
+      type: "POTENTIAL",
+      checklist: [
+        "Kolla Google Trends för marknadsmöjligheter",
+        "Analysera konkurrenter - vad gör de?",
+        "Testa selektiv breddning med 'säkra' produkter",
+        "Övervaka utveckling över tid"
+      ]
+    }
+  }
+
+  if (upperAction.includes("KONFLIKT")) {
+    return {
+      type: "KONFLIKT",
+      checklist: [
+        "Manuell bedömning krävs - kolla toppartiklar",
+        "Analysera kompletteringsmöjligheter",
+        "Jämför med liknande leverantörer",
+        "Överväg AI-analys för djupare insikt"
+      ]
+    }
+  }
+
+  // Fallback för generisk UTVÄRDERA (inkl. gamla formatet "UTVÄRDERA Kräver manuell bedömning")
+  return {
+    type: "UTVÄRDERA",
+    checklist: [
+      "Analysera toppartiklar och identifiera mönster",
+      "Kolla Google Trends för marknadsmöjligheter",
+      "Jämför med liknande leverantörer",
+      "Överväg AI-analys för djupare insikt"
+    ]
+  }
 }
 
 /**

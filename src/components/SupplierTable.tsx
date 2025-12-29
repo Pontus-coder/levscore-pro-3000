@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Badge } from "./ui/Badge"
 import { Input } from "./ui/Input"
+import { getEvaluateChecklist } from "@/lib/score-calculator"
 
 interface Supplier {
   id: string
@@ -285,15 +286,37 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                     const action = parseAction(supplier.shortAction)
                     if (!action) return <span className="text-slate-600">-</span>
                     
+                    // Kolla om det är UTVÄRDERA och hämta checklista
+                    const evaluateInfo = getEvaluateChecklist(supplier.shortAction)
+                    
                     return (
                       <div className="group relative inline-block">
                         <span className={`inline-block px-3 py-1.5 rounded-lg text-xs font-bold border ${action.bgColor} ${action.color} ${action.borderColor} cursor-default`}>
                           {action.label}
                         </span>
                         {/* Tooltip med full beskrivning - öppnas åt vänster */}
-                        <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-xl">
-                          <div className={`text-xs font-bold ${action.color} mb-1`}>{action.label}</div>
-                          {action.description}
+                        <div className={`absolute right-0 top-full mt-2 ${evaluateInfo ? 'w-80' : 'w-64'} p-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity z-20 pointer-events-none shadow-xl`}>
+                          <div className={`text-xs font-bold ${action.color} mb-2`}>
+                            {evaluateInfo ? `${action.label}: ${evaluateInfo.type}` : action.label}
+                          </div>
+                          {evaluateInfo ? (
+                            <div className="space-y-1">
+                              <p className="text-xs text-slate-400 mb-2">{action.description}</p>
+                              <div className="border-t border-slate-700 pt-2">
+                                <div className="text-xs font-semibold text-purple-400 mb-1.5">Checklista:</div>
+                                <ul className="space-y-1 text-xs text-slate-300">
+                                  {evaluateInfo.checklist.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-2">
+                                      <span className="text-purple-400 mt-0.5">•</span>
+                                      <span>{item}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>{action.description}</div>
+                          )}
                         </div>
                       </div>
                     )

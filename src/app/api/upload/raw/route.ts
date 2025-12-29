@@ -98,14 +98,16 @@ export async function POST(request: NextRequest) {
         ? String(row[mapping.description] || "").substring(0, 500) 
         : ""
       const quantity = mapping.quantity ? toNumber(row[mapping.quantity]) : 1
-      const supplierNumber = String(row[mapping.supplierNumber] || "").substring(0, 50)
-      const supplierName = String(row[mapping.supplierName] || "").substring(0, 200)
+      const supplierNumber = String(row[mapping.supplierNumber] || "").trim().substring(0, 50)
+      const supplierName = String(row[mapping.supplierName] || "").trim().substring(0, 200)
       const margin = mapping.margin ? toNumber(row[mapping.margin]) : 0
       const revenue = toNumber(row[mapping.revenue])
       const grossProfit = mapping.grossProfit ? toNumber(row[mapping.grossProfit]) : undefined
 
-      // Skippa rader utan leverantörsnummer
-      if (!supplierNumber) continue
+      // Skippa rader utan leverantörsnummer eller leverantörsnamn (efter trim)
+      if (!supplierNumber || !supplierName || supplierNumber.length === 0 || supplierName.length === 0) {
+        continue
+      }
 
       articles.push({
         articleNumber,
@@ -126,32 +128,69 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Debug: Räkna total omsättning från artiklar
+    const totalRevenueFromArticles = articles.reduce((sum, a) => sum + a.revenue, 0)
+    console.log(`[RAW IMPORT] Total omsättning från artiklar (innan aggregering): ${totalRevenueFromArticles.toLocaleString('sv-SE')} kr`)
+    console.log(`[RAW IMPORT] Antal artiklar: ${articles.length}`)
+
     // Aggregera till leverantörsnivå
     const aggregated = aggregateBySupplier(articles)
+
+    // Debug: Räkna total omsättning efter aggregering
+    const totalRevenueFromAggregated = aggregated.reduce((sum, s) => sum + s.totalRevenue, 0)
+    console.log(`[RAW IMPORT] Total omsättning efter aggregering: ${totalRevenueFromAggregated.toLocaleString('sv-SE')} kr`)
+    console.log(`[RAW IMPORT] Antal leverantörer efter aggregering: ${aggregated.length}`)
 
     // Beräkna alla scores
     const calculated = calculateAllScores(aggregated)
 
+    // Räkna total omsättning från filen för jämförelse
+    const fileTotalRevenue = calculated.reduce((sum, s) => sum + s.totalRevenue, 0)
+    console.log(`[RAW IMPORT] Total omsättning i filen: ${fileTotalRevenue.toLocaleString('sv-SE')} kr`)
+
+    // Hämta alla befintliga leverantörer en gång för snabb lookup
+    const allExistingSuppliersForLookup = await prisma.supplier.findMany({
+      where: {
+        organizationId: ctx.organization.id,
+      },
+    })
+
+    console.log(`[RAW IMPORT] Före import: ${allExistingSuppliersForLookup.length} leverantörer i databasen`)
+    const beforeTotalRevenue = allExistingSuppliersForLookup.reduce((sum, s) => sum + Number(s.totalRevenue), 0)
+    console.log(`[RAW IMPORT] Före import: Total omsättning = ${beforeTotalRevenue.toLocaleString('sv-SE')} kr`)
+
+    // Skapa en map med normaliserade nummer som nyckel
+    const existingSuppliersMap = new Map<string, typeof allExistingSuppliersForLookup[0]>()
+    for (const supplier of allExistingSuppliersForLookup) {
+      const normalized = supplier.supplierNumber.trim().toUpperCase()
+      if (!existingSuppliersMap.has(normalized)) {
+        existingSuppliersMap.set(normalized, supplier)
+      } else {
+        // Om det finns dubletter, behåll den första
+        console.log(`[RAW IMPORT] VARNING: Dublett hittad för leverantör ${supplier.supplierNumber}`)
+      }
+    }
+
     // Spara till databasen
     let imported = 0
     let updated = 0
+    const supplierNumbersInFile = new Set<string>() // Samla alla leverantörsnummer från filen
 
     for (const supplier of calculated) {
-      const existing = await prisma.supplier.findUnique({
-        where: {
-          supplierNumber_organizationId: {
-            supplierNumber: supplier.supplierNumber,
-            organizationId: ctx.organization.id,
-          },
-        },
-      })
+      // Normalisera leverantörsnummer (trim för att undvika matchningsproblem)
+      const normalizedSupplierNumber = supplier.supplierNumber.trim()
+      supplierNumbersInFile.add(normalizedSupplierNumber)
+
+      // Hitta befintlig leverantör med normaliserad matchning
+      const existing = existingSuppliersMap.get(normalizedSupplierNumber.toUpperCase())
 
       const supplierData = {
-        supplierNumber: supplier.supplierNumber,
+        supplierNumber: normalizedSupplierNumber,
         name: supplier.name,
         rowCount: supplier.rowCount,
         totalQuantity: supplier.totalQuantity,
         totalRevenue: supplier.totalRevenue,
+        totalTB: supplier.totalTB, // Spara totalTB för korrekt TG-beräkning
         avgMargin: supplier.avgMargin,
         salesScore: supplier.salesScore,
         assortmentScore: supplier.assortmentScore,
@@ -167,11 +206,17 @@ export async function POST(request: NextRequest) {
       }
 
       if (existing) {
+        // Uppdatera och normalisera supplierNumber i databasen
         await prisma.supplier.update({
           where: { id: existing.id },
-          data: supplierData,
+          data: {
+            ...supplierData,
+            supplierNumber: normalizedSupplierNumber, // Säkerställ normaliserat nummer
+          },
         })
         updated++
+        // Ta bort från map så den inte tas bort senare
+        existingSuppliersMap.delete(normalizedSupplierNumber.toUpperCase())
       } else {
         await prisma.supplier.create({
           data: {
@@ -182,6 +227,50 @@ export async function POST(request: NextRequest) {
         imported++
       }
     }
+
+    // Ta bort alla leverantörer som INTE finns i den nya filen (full refresh)
+    // Använd samma data som vi redan hämtat
+    const normalizedFileNumbers = new Set(
+      Array.from(supplierNumbersInFile)
+        .map(n => n.trim().toUpperCase())
+        .filter(n => n.length > 0) // Filtrera bort tomma
+    )
+
+    // Hitta leverantörer som ska tas bort (normalisera för jämförelse)
+    const suppliersToDelete = allExistingSuppliersForLookup.filter(
+      existing => {
+        const normalizedExisting = existing.supplierNumber.trim().toUpperCase()
+        // Ta bort om: inte i filen, eller om leverantörsnummer är tomt
+        return normalizedExisting.length === 0 || !normalizedFileNumbers.has(normalizedExisting)
+      }
+    )
+
+    // Ta bort leverantörer som inte finns i filen
+    let deletedCount = 0
+    if (suppliersToDelete.length > 0) {
+      console.log(`[RAW IMPORT] Tar bort ${suppliersToDelete.length} leverantörer som inte finns i filen`)
+      console.log(`[RAW IMPORT] Leverantörer att ta bort:`, suppliersToDelete.map(s => `${s.supplierNumber} (${s.id})`).slice(0, 10))
+      
+      const deleted = await prisma.supplier.deleteMany({
+        where: {
+          id: {
+            in: suppliersToDelete.map(s => s.id),
+          },
+        },
+      })
+      deletedCount = deleted.count
+      console.log(`[RAW IMPORT] Raderade ${deleted.count} leverantörer`)
+    } else {
+      console.log(`[RAW IMPORT] Inga leverantörer att ta bort`)
+    }
+
+    // Verifiera att alla leverantörer i filen finns i databasen
+    const finalSuppliers = await prisma.supplier.findMany({
+      where: { organizationId: ctx.organization.id },
+      select: { supplierNumber: true, totalRevenue: true },
+    })
+    const finalTotalRevenue = finalSuppliers.reduce((sum, s) => sum + Number(s.totalRevenue), 0)
+    console.log(`[RAW IMPORT] Efter import: ${finalSuppliers.length} leverantörer, total omsättning: ${finalTotalRevenue.toLocaleString('sv-SE')} kr`)
 
     // Spara uppladdningshistorik
     await prisma.uploadHistory.create({
@@ -196,12 +285,15 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Import klar! ${calculated.length} leverantörer bearbetade.`,
+      message: `Import klar! ${calculated.length} leverantörer bearbetade. ${deletedCount > 0 ? `${deletedCount} leverantörer togs bort.` : ''}`,
       stats: {
         articlesProcessed: articles.length,
         suppliersCreated: imported,
         suppliersUpdated: updated,
+        suppliersDeleted: deletedCount,
         totalSuppliers: calculated.length,
+        existingBeforeDelete: allExistingSuppliersForLookup.length,
+        finalTotalRevenue: finalTotalRevenue,
       },
     })
   } catch (error) {
