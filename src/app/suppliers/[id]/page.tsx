@@ -788,11 +788,11 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                   <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                     <h3 className="text-sm font-medium text-emerald-400 mb-3">Effekt på score:</h3>
                     <div className="space-y-2 text-sm">
-                      {supplier.adjustedTotalTB !== undefined && supplier.totalTB && (
+                      {supplier.totalTB && supplier.adjustedTotalTB !== null && supplier.adjustedTotalTB !== undefined && (
                         <div className="flex justify-between">
                           <span className="text-slate-400">TB:</span>
                           <span className="text-slate-200">
-                            {formatCurrency(supplier.totalTB)} → {formatCurrency(supplier.adjustedTotalTB)}
+                            {formatCurrency(parseFloat(supplier.totalTB))} → {formatCurrency(supplier.adjustedTotalTB)}
                           </span>
                         </div>
                       )}
