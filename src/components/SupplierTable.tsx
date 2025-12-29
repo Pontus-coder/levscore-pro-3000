@@ -43,7 +43,22 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
     return matchesSearch && matchesTier
   })
 
-  const tiers = [...new Set(suppliers.map(s => s.tier).filter(Boolean))]
+  // Sortera tiers i ordningen A, B, C
+  const allTiers = [...new Set(suppliers.map(s => s.tier).filter(Boolean))]
+  const tierOrder = ["A", "B", "C"]
+  const tiers = tierOrder
+    .map(tier => {
+      // Hitta den faktiska tier-strängen som matchar A, B eller C
+      return allTiers.find(t => {
+        if (!t) return false
+        const upperT = t.toUpperCase()
+        if (tier === "A") return upperT.includes("A-TIER") || upperT.includes("A –") || upperT.startsWith("A")
+        if (tier === "B") return upperT.includes("B-TIER") || upperT.includes("B –") || upperT.startsWith("B")
+        if (tier === "C") return upperT.includes("C-TIER") || upperT.includes("C –") || upperT.startsWith("C")
+        return false
+      })
+    })
+    .filter(Boolean) as string[]
 
   const formatCurrency = (value: string | number) => {
     const num = typeof value === "string" ? parseFloat(value) : value
