@@ -135,6 +135,15 @@ export default function UploadPage() {
     suppliersCreated: number
     suppliersUpdated: number
     totalSuppliers: number
+    suppliersDeleted?: number
+    existingBeforeDelete?: number
+    finalTotalRevenue?: number
+    debug?: {
+      totalRevenueFromArticles: number
+      totalRevenueFromAggregated: number
+      fileTotalRevenue: number
+      beforeTotalRevenue: number
+    }
   } | null>(null)
 
   useEffect(() => {
