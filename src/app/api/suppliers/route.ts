@@ -55,11 +55,16 @@ export async function GET(request: NextRequest) {
     const totalRevenue = suppliers.reduce((sum, s) => sum + Number(s.totalRevenue), 0)
     const totalTB = suppliers.reduce((sum, s) => sum + Number(s.totalTB || 0), 0)
     
-    // Korrekt genomsnittlig TG: (Total TB / Total Omsättning) * 100
-    // Inte genomsnitt av procenten (det ger fel resultat)
-    const avgMargin = totalRevenue > 0 
-      ? (totalTB / totalRevenue) * 100 
-      : 0
+    // Beräkna genomsnittlig TG
+    // Försök använda totalTB om det finns och är > 0, annars fallback till genomsnitt av avgMargin
+    let avgMargin = 0
+    if (totalTB > 0 && totalRevenue > 0) {
+      // Använd viktat genomsnitt om totalTB finns
+      avgMargin = (totalTB / totalRevenue) * 100
+    } else if (suppliers.length > 0) {
+      // Fallback: genomsnitt av avgMargin (för gamla data utan totalTB)
+      avgMargin = suppliers.reduce((sum, s) => sum + Number(s.avgMargin || 0), 0) / suppliers.length
+    }
     
     const stats = {
       totalSuppliers: suppliers.length,
