@@ -224,11 +224,52 @@ function calculateEfficiencyScore(revenue: number, rowCount: number, maxEfficien
  * Beräkna Margin Score
  * Formel: <20→0, <30→1, <40→2, ≥40→3
  */
-function calculateMarginScore(avgMargin: number): number {
+export function calculateMarginScore(avgMargin: number): number {
   if (avgMargin < 20) return 0
   if (avgMargin < 30) return 1
   if (avgMargin < 40) return 2
   return 3
+}
+
+/**
+ * Beräkna justerade värden baserat på bonus och anbudsstöd
+ */
+export function calculateAdjustedValues(
+  totalTB: number,
+  totalRevenue: number,
+  bonusAmount: number | null | undefined,
+  tenderSupport: number | null | undefined,
+  salesScore: number,
+  assortmentScore: number,
+  efficiencyScore: number
+): {
+  adjustedTotalTB: number
+  adjustedAvgMargin: number
+  adjustedMarginScore: number
+  adjustedTotalScore: number
+} {
+  // Beräkna justerad TB
+  const bonus = bonusAmount || 0
+  const support = tenderSupport || 0
+  const adjustedTotalTB = totalTB + bonus + support
+
+  // Beräkna justerad TG
+  const adjustedAvgMargin = totalRevenue > 0 
+    ? (adjustedTotalTB / totalRevenue) * 100 
+    : 0
+
+  // Beräkna justerad marginScore
+  const adjustedMarginScore = calculateMarginScore(adjustedAvgMargin)
+
+  // Beräkna justerad totalScore
+  const adjustedTotalScore = Math.round((salesScore + assortmentScore + efficiencyScore + adjustedMarginScore) * 10) / 10
+
+  return {
+    adjustedTotalTB,
+    adjustedAvgMargin,
+    adjustedMarginScore,
+    adjustedTotalScore,
+  }
 }
 
 /**

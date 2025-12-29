@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import { getOrganizationContext } from "@/lib/organization"
+import { calculateAdjustedValues } from "@/lib/score-calculator"
 
 export async function GET(
   request: NextRequest,
@@ -49,16 +50,31 @@ export async function GET(
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
     }
 
+    // Calculate adjusted values for bonus/tender support
+    const adjusted = calculateAdjustedValues(
+      Number(supplier.totalTB),
+      Number(supplier.totalRevenue),
+      supplier.bonusAmount,
+      supplier.tenderSupport,
+      Number(supplier.salesScore),
+      Number(supplier.assortmentScore),
+      Number(supplier.efficiencyScore)
+    )
+
     // Calculate adjusted score with custom factors
     const customFactorsScore = supplier.customFactors.reduce((sum, factor) => {
       return sum + Number(factor.factorValue) * Number(factor.weight)
     }, 0)
 
-    const adjustedTotalScore = Number(supplier.totalScore) + customFactorsScore
+    // Final adjusted score = adjustedTotalScore (from bonus) + custom factors
+    const finalAdjustedTotalScore = adjusted.adjustedTotalScore + customFactorsScore
 
     return NextResponse.json({
       ...supplier,
-      adjustedTotalScore,
+      adjustedTotalScore: finalAdjustedTotalScore,
+      adjustedTotalTB: adjusted.adjustedTotalTB,
+      adjustedAvgMargin: adjusted.adjustedAvgMargin,
+      adjustedMarginScore: adjusted.adjustedMarginScore,
     })
   } catch (error) {
     console.error("Error fetching supplier:", error)

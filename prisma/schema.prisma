@@ -136,6 +136,15 @@ model Supplier {
   keywords          String[]       @default([])  // Sökord för Google Trends
   aiAnalysis        String?        @db.Text      // Cachad AI-analys (JSON)
   aiAnalysisDate    DateTime?                    // När AI-analysen genererades
+  // Bonus och anbudsstöd (båda fasta belopp i SEK)
+  bonusAmount       Float?                        // Bonus i SEK
+  tenderSupport     Float?                        // Anbudsstöd i SEK
+  bonusComment      String?        @db.Text      // Kommentar om bonus/anbudsstöd
+  // Beräknade fält (justerade för bonus/anbudsstöd)
+  adjustedTotalTB   Float?                        // totalTB + bonusAmount + tenderSupport
+  adjustedAvgMargin Float?                        // TG baserat på adjustedTotalTB
+  adjustedMarginScore Float?                      // marginScore baserat på adjustedAvgMargin
+  adjustedTotalScore Float?                       // totalScore med adjustedMarginScore
   customFactors     CustomFactor[]
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt

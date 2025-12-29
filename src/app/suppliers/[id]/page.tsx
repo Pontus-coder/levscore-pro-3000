@@ -42,6 +42,7 @@ interface Supplier {
   rowCount: number
   totalQuantity: number
   totalRevenue: string
+  totalTB: string
   avgMargin: string
   salesScore: string
   assortmentScore: string
@@ -57,6 +58,13 @@ interface Supplier {
   keywords: string[]
   customFactors: CustomFactor[]
   adjustedTotalScore: number
+  // Bonus och anbudsstöd
+  bonusAmount?: number | null
+  tenderSupport?: number | null
+  bonusComment?: string | null
+  adjustedTotalTB?: number | null
+  adjustedAvgMargin?: number | null
+  adjustedMarginScore?: number | null
 }
 
 export default function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -87,6 +95,12 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const [newKeyword, setNewKeyword] = useState("")
   const [isSavingKeywords, setIsSavingKeywords] = useState(false)
 
+  // Bonus/Tender Support state
+  const [bonusAmount, setBonusAmount] = useState<string>("")
+  const [tenderSupport, setTenderSupport] = useState<string>("")
+  const [bonusComment, setBonusComment] = useState<string>("")
+  const [isSavingBonus, setIsSavingBonus] = useState(false)
+
   const fetchSupplier = useCallback(async () => {
     try {
       const response = await fetch(`/api/suppliers/${resolvedParams.id}`)
@@ -98,6 +112,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       
       setSupplier(data)
       setKeywords(data.keywords || [])
+      setBonusAmount(data.bonusAmount?.toString() || "")
+      setTenderSupport(data.tenderSupport?.toString() || "")
+      setBonusComment(data.bonusComment || "")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ett fel uppstod")
     } finally {
@@ -191,6 +208,47 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
   const removeKeyword = (keyword: string) => {
     setKeywords(keywords.filter(k => k !== keyword))
+  }
+
+  const saveBonus = async () => {
+    setIsSavingBonus(true)
+    try {
+      const bonus = bonusAmount.trim() ? parseFloat(bonusAmount) : null
+      const support = tenderSupport.trim() ? parseFloat(tenderSupport) : null
+      const comment = bonusComment.trim() || null
+
+      if (bonus !== null && (isNaN(bonus) || bonus < 0)) {
+        alert("Bonus måste vara ett positivt tal")
+        return
+      }
+
+      if (support !== null && (isNaN(support) || support < 0)) {
+        alert("Anbudsstöd måste vara ett positivt tal")
+        return
+      }
+
+      const response = await fetch(`/api/suppliers/${resolvedParams.id}/bonus`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bonusAmount: bonus,
+          tenderSupport: support,
+          bonusComment: comment,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Kunde inte spara bonus/anbudsstöd")
+      }
+
+      // Refresh supplier data
+      await fetchSupplier()
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Ett fel uppstod")
+    } finally {
+      setIsSavingBonus(false)
+    }
   }
 
   const getPriorityBadge = (priority: "high" | "medium" | "low") => {
@@ -666,6 +724,108 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               </Card>
             )}
 
+            {/* Bonus & Anbudsstöd */}
+            <Card variant="glass">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 rounded-lg bg-emerald-500/20">
+                  <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-100">Bonus & Anbudsstöd</h2>
+                  <p className="text-xs text-slate-500">Lägg till bonus och anbudsstöd för att se justerad TG och score</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Bonus (SEK)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0"
+                      value={bonusAmount}
+                      onChange={(e) => setBonusAmount(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1">
+                      Anbudsstöd (SEK)
+                    </label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0"
+                      value={tenderSupport}
+                      onChange={(e) => setTenderSupport(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                    Kommentar (valfritt)
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="T.ex. 'Årlig bonus 2024' eller 'Anbudsstöd Q1'"
+                    value={bonusComment}
+                    onChange={(e) => setBonusComment(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Visa effekt om bonus/anbudsstöd finns */}
+                {(supplier.bonusAmount || supplier.tenderSupport || bonusAmount || tenderSupport) && (
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                    <h3 className="text-sm font-medium text-emerald-400 mb-3">Effekt på score:</h3>
+                    <div className="space-y-2 text-sm">
+                      {supplier.adjustedTotalTB !== undefined && supplier.totalTB && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">TB:</span>
+                          <span className="text-slate-200">
+                            {formatCurrency(supplier.totalTB)} → {formatCurrency(supplier.adjustedTotalTB)}
+                          </span>
+                        </div>
+                      )}
+                      {supplier.adjustedAvgMargin !== undefined && supplier.avgMargin && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">TG:</span>
+                          <span className="text-slate-200">
+                            {formatPercent(supplier.avgMargin)} → {formatPercent(supplier.adjustedAvgMargin)}
+                          </span>
+                        </div>
+                      )}
+                      {supplier.adjustedMarginScore !== undefined && supplier.marginScore && (
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Margin Score:</span>
+                          <span className="text-slate-200">
+                            {parseFloat(supplier.marginScore).toFixed(1)} → {supplier.adjustedMarginScore.toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  onClick={saveBonus}
+                  disabled={isSavingBonus}
+                  className="w-full"
+                >
+                  {isSavingBonus ? "Sparar..." : "Spara bonus & anbudsstöd"}
+                </Button>
+              </div>
+            </Card>
+
             {/* Custom Factors */}
             <Card variant="glass">
               <div className="flex items-center justify-between mb-6">
@@ -790,8 +950,22 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                     <span className="text-sm text-slate-500 font-normal ml-1">/ 10</span>
                   </p>
                 </div>
+                {(supplier.bonusAmount || supplier.tenderSupport) && supplier.adjustedMarginScore !== undefined && (
+                  <div className="border-t border-slate-700 pt-3">
+                    <p className="text-sm text-slate-400 mb-1">Efter bonus/anbudsstöd</p>
+                    <p className="text-2xl font-bold">
+                      <span className={getTotalScoreColor(supplier.adjustedTotalScore || parseFloat(supplier.totalScore))}>
+                        {(supplier.adjustedTotalScore || parseFloat(supplier.totalScore)).toFixed(1)}
+                      </span>
+                      <span className="text-sm text-slate-500 font-normal ml-1">/ 10</span>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Margin Score: {parseFloat(supplier.marginScore).toFixed(1)} → {supplier.adjustedMarginScore.toFixed(1)}
+                    </p>
+                  </div>
+                )}
                 <div className="border-t border-slate-700 pt-3">
-                  <p className="text-sm text-slate-400 mb-1">Justerad score</p>
+                  <p className="text-sm text-slate-400 mb-1">Justerad score (inkl. alla faktorer)</p>
                   <p className="text-2xl font-bold">
                     <span className={getTotalScoreColor(supplier.adjustedTotalScore)}>
                       {supplier.adjustedTotalScore.toFixed(1)}
@@ -799,9 +973,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                     <span className="text-sm text-slate-500 font-normal ml-1">/ 10</span>
                   </p>
                 </div>
-                {supplier.customFactors.length > 0 && (
+                {(supplier.customFactors.length > 0 || supplier.bonusAmount || supplier.tenderSupport) && (
                   <div className="border-t border-slate-700 pt-3">
-                    <p className="text-sm text-slate-400 mb-1">Effekt av egna faktorer</p>
+                    <p className="text-sm text-slate-400 mb-1">Total justering</p>
                     <p className={`text-lg font-bold ${
                       supplier.adjustedTotalScore - parseFloat(supplier.totalScore) >= 0 
                         ? "text-emerald-400" 
