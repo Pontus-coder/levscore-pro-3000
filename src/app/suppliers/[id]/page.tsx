@@ -336,11 +336,26 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   }
 
   // Varje score har sitt eget maxvärde
+  // Använd justerad margin score om bonus/anbudsstöd finns
+  const originalMarginScore = parseFloat(supplier.marginScore)
+  const adjustedMarginScore = supplier.adjustedMarginScore !== null && supplier.adjustedMarginScore !== undefined 
+    ? supplier.adjustedMarginScore 
+    : originalMarginScore
+  const hasMarginAdjustment = supplier.bonusAmount || supplier.tenderSupport
+
   const scores = [
     { name: "Sales", value: parseFloat(supplier.salesScore), max: 3, label: "Försäljning", desc: "Omsättning relativt till andra" },
     { name: "Assortment", value: parseFloat(supplier.assortmentScore), max: 2, label: "Sortimentsbredd", desc: "Antal artiklar/rader" },
     { name: "Efficiency", value: parseFloat(supplier.efficiencyScore), max: 2, label: "Effektivitet", desc: "Omsättning per artikel" },
-    { name: "Margin", value: parseFloat(supplier.marginScore), max: 3, label: "Marginal", desc: "Täckningsgrad (TG)" },
+    { 
+      name: "Margin", 
+      value: adjustedMarginScore, 
+      originalValue: originalMarginScore,
+      max: 3, 
+      label: "Marginal", 
+      desc: "Täckningsgrad (TG)",
+      hasAdjustment: hasMarginAdjustment
+    },
   ]
   
   const totalMax = 10 // Sum av alla max (3+2+2+3)
