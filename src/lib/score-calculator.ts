@@ -20,9 +20,16 @@ export const CFG = {
  */
 export function toNumber(v: unknown): number {
   if (v === null || v === undefined || v === "") return NaN
-  if (typeof v === "number") return v
+  if (typeof v === "number") {
+    // Om det redan är ett nummer, returnera det direkt
+    return Number.isFinite(v) ? v : NaN
+  }
 
+  // Konvertera till sträng och rensa
   let s = String(v).trim()
+  
+  // Om strängen är tom efter trim, returnera NaN
+  if (s === "" || s === "-" || s === "+") return NaN
   
   // Ta bort alla mellanslag (tusentalsseparator)
   s = s.replace(/\s+/g, "")

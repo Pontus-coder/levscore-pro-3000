@@ -73,10 +73,12 @@ export async function POST(request: NextRequest) {
     })
     const sheetName = workbook.SheetNames[0]
     const sheet = workbook.Sheets[sheetName]
-    // Använd raw: false för att konvertera till JavaScript-typer (nummer blir number, inte string)
+    // Använd raw: true för att få faktiska cell-värden (inte formaterade text-värden)
+    // Vi konverterar sedan själva med toNumber() som hanterar olika format
     const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      raw: false, // Konvertera till JavaScript-typer
-      defval: null
+      raw: true, // Få faktiska cell-värden (number, string, etc.)
+      defval: null,
+      rawNumbers: false, // Låt XLSX konvertera nummer om möjligt
     })
 
     if (!data || data.length === 0) {
