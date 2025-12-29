@@ -34,6 +34,13 @@ export function toNumber(v: unknown): number {
   // Ta bort alla mellanslag (tusentalsseparator)
   s = s.replace(/\s+/g, "")
   
+  // Ta bort alla icke-numeriska tecken förutom komma, punkt och minus
+  // (för att hantera formatering som "kr", "SEK", etc.)
+  s = s.replace(/[^\d,.\-+]/g, "")
+  
+  // Om det bara finns minus-tecken, returnera NaN
+  if (s === "-" || s === "+") return NaN
+  
   // Hantera olika decimalseparatorer
   // Om det finns flera komman eller punkter, det sista är decimalseparator
   const lastComma = s.lastIndexOf(",")

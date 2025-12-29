@@ -147,8 +147,11 @@ export default function UploadPage() {
       rowsProcessed?: number
       rowsSkipped?: number
       sampleValues?: {
-        revenue: { raw: unknown; type: string; parsed: number; column: string }
-        tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+        samples: Array<{
+          supplierNumber: string
+          revenue: { raw: unknown; type: string; parsed: number; column: string }
+          tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+        }>
       } | null
     }
   } | null>(null)
@@ -429,32 +432,39 @@ export default function UploadPage() {
                   </div>
                   
                   {/* Visa exempel på värden */}
-                  {importStats.debug.sampleValues && (
+                  {importStats.debug.sampleValues && importStats.debug.sampleValues.samples && importStats.debug.sampleValues.samples.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-slate-700">
-                      <h4 className="text-xs font-semibold text-slate-300 mb-2">Exempel på värden från Excel:</h4>
-                      <div className="text-xs text-slate-400 space-y-1">
-                        <div>
-                          <span className="text-slate-500">Belopp (raw):</span>
-                          <span className="text-slate-200 ml-2">{String(importStats.debug.sampleValues.revenue.raw)}</span>
-                          <span className="text-slate-500 ml-2">(typ: {importStats.debug.sampleValues.revenue.type})</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-500">Belopp (parsat):</span>
-                          <span className="text-slate-200 ml-2">{importStats.debug.sampleValues.revenue.parsed.toLocaleString('sv-SE')} kr</span>
-                        </div>
-                        {importStats.debug.sampleValues.tb && (
-                          <>
-                            <div>
-                              <span className="text-slate-500">TB (raw):</span>
-                              <span className="text-slate-200 ml-2">{String(importStats.debug.sampleValues.tb.raw)}</span>
-                              <span className="text-slate-500 ml-2">(typ: {importStats.debug.sampleValues.tb.type})</span>
+                      <h4 className="text-xs font-semibold text-slate-300 mb-2">Exempel på värden från Excel (top 5 artiklar):</h4>
+                      <div className="text-xs text-slate-400 space-y-3">
+                        {importStats.debug.sampleValues.samples.map((sample, idx) => (
+                          <div key={idx} className="p-2 bg-slate-900/50 rounded border border-slate-700">
+                            <div className="font-semibold text-slate-200 mb-1">Artikel {idx + 1} (Lev: {sample.supplierNumber}):</div>
+                            <div className="space-y-1 ml-2">
+                              <div>
+                                <span className="text-slate-500">Belopp (raw):</span>
+                                <span className="text-slate-200 ml-2">{String(sample.revenue.raw)}</span>
+                                <span className="text-slate-500 ml-2">(typ: {sample.revenue.type})</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-500">Belopp (parsat):</span>
+                                <span className="text-slate-200 ml-2 font-semibold">{sample.revenue.parsed.toLocaleString('sv-SE')} kr</span>
+                              </div>
+                              {sample.tb && (
+                                <>
+                                  <div>
+                                    <span className="text-slate-500">TB (raw):</span>
+                                    <span className="text-slate-200 ml-2">{String(sample.tb.raw)}</span>
+                                    <span className="text-slate-500 ml-2">(typ: {sample.tb.type})</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-500">TB (parsat):</span>
+                                    <span className="text-slate-200 ml-2 font-semibold">{sample.tb.parsed?.toLocaleString('sv-SE') || '0'} kr</span>
+                                  </div>
+                                </>
+                              )}
                             </div>
-                            <div>
-                              <span className="text-slate-500">TB (parsat):</span>
-                              <span className="text-slate-200 ml-2">{importStats.debug.sampleValues.tb.parsed?.toLocaleString('sv-SE')} kr</span>
-                            </div>
-                          </>
-                        )}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

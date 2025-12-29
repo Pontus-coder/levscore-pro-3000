@@ -134,46 +134,67 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Debug: Visa exempel på värden för att se vad som faktiskt läses
+    // Debug: Visa flera exempel på värden för att se vad som faktiskt läses
     let sampleDebugInfo: {
-      revenue: { raw: unknown; type: string; parsed: number; column: string }
-      tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+      samples: Array<{
+        supplierNumber: string
+        revenue: { raw: unknown; type: string; parsed: number; column: string }
+        tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+      }>
     } | null = null
     
     if (articles.length > 0) {
-      const sampleArticle = articles[0]
-      const sampleRow = data.find(row => {
-        const rowSupplierNumber = String(row[mapping.supplierNumber] || "").trim()
-        return rowSupplierNumber === sampleArticle.supplierNumber
-      })
+      // Ta de första 5 artiklarna med högst revenue för att se exempel
+      const topArticles = [...articles]
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5)
       
-      if (sampleRow) {
-        const rawRevenue = sampleRow[mapping.revenue]
-        const rawTB = mapping.grossProfit ? sampleRow[mapping.grossProfit] : null
+      const samples: Array<{
+        supplierNumber: string
+        revenue: { raw: unknown; type: string; parsed: number; column: string }
+        tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+      }> = []
+      
+      for (const article of topArticles) {
+        const sampleRow = data.find(row => {
+          const rowSupplierNumber = String(row[mapping.supplierNumber] || "").trim()
+          return rowSupplierNumber === article.supplierNumber
+        })
         
-        const debugInfo: {
-          revenue: { raw: unknown; type: string; parsed: number; column: string }
-          tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
-        } = {
-          revenue: {
-            raw: rawRevenue,
-            type: typeof rawRevenue,
-            parsed: sampleArticle.revenue,
-            column: mapping.revenue
+        if (sampleRow) {
+          const rawRevenue = sampleRow[mapping.revenue]
+          const rawTB = mapping.grossProfit ? sampleRow[mapping.grossProfit] : null
+          
+          const sample: {
+            supplierNumber: string
+            revenue: { raw: unknown; type: string; parsed: number; column: string }
+            tb?: { raw: unknown; type: string; parsed: number | undefined; column: string }
+          } = {
+            supplierNumber: article.supplierNumber,
+            revenue: {
+              raw: rawRevenue,
+              type: typeof rawRevenue,
+              parsed: article.revenue,
+              column: mapping.revenue
+            }
           }
-        }
-        
-        if (rawTB) {
-          debugInfo.tb = {
-            raw: rawTB,
-            type: typeof rawTB,
-            parsed: sampleArticle.grossProfit,
-            column: mapping.grossProfit
+          
+          if (rawTB !== null && rawTB !== undefined) {
+            sample.tb = {
+              raw: rawTB,
+              type: typeof rawTB,
+              parsed: article.grossProfit,
+              column: mapping.grossProfit || ""
+            }
           }
+          
+          samples.push(sample)
         }
-        
-        sampleDebugInfo = debugInfo
-        console.log(`[RAW IMPORT] Exempel på värden från Excel:`, sampleDebugInfo)
+      }
+      
+      if (samples.length > 0) {
+        sampleDebugInfo = { samples }
+        console.log(`[RAW IMPORT] Exempel på värden från Excel (top 5):`, sampleDebugInfo)
       }
     }
 
