@@ -280,7 +280,7 @@ export function SupplierTable({ suppliers, onSort, sortField, sortOrder }: Suppl
                                 <span className={`font-bold text-lg ${getScoreColor(displayScore)}`}>
                                   {formatScore(displayScore.toString())}
                                 </span>
-                                <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium" title="Justerad med bonus/anbudsstöd">
+                                <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium" title="Manuellt justerad (bonus/anbudsstöd eller egna faktorer)">
                                   +
                                 </span>
                               </div>
