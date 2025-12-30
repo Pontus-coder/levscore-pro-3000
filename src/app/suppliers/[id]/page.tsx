@@ -442,7 +442,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                           <div className="flex items-center gap-2">
                             <span className="text-slate-200 font-medium">{score.label}</span>
                             {hasAdjustment && (
-                              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium" title="Justerad med bonus/anbudsstöd">
+                              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium" title="Manuellt justerad (bonus/anbudsstöd eller egna faktorer)">
                                 +
                               </span>
                             )}
