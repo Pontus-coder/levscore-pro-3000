@@ -31,11 +31,37 @@ export async function DELETE(request: NextRequest) {
       },
     })
 
+    // Radera alla artiklar för organisationen
+    const suppliers = await prisma.supplier.findMany({
+      where: { organizationId: context.organization.id },
+      select: { id: true },
+    })
+    const supplierIds = suppliers.map(s => s.id)
+    
+    let deletedArticles = 0
+    if (supplierIds.length > 0) {
+      const deletedArticlesResult = await prisma.article.deleteMany({
+        where: {
+          supplierId: { in: supplierIds },
+        },
+      })
+      deletedArticles = deletedArticlesResult.count
+    }
+
+    // Radera alla invitations för organisationen
+    const deletedInvitations = await prisma.invitation.deleteMany({
+      where: {
+        organizationId: context.organization.id,
+      },
+    })
+
     return NextResponse.json({
       success: true,
       message: "All data har raderats",
       deletedSuppliers: deletedSuppliers.count,
       deletedUploads: deletedUploads.count,
+      deletedArticles,
+      deletedInvitations: deletedInvitations.count,
     })
   } catch (error) {
     console.error("Delete all error:", error)

@@ -34,12 +34,20 @@ export default function InvitePage() {
 
         if (!response.ok) {
           setError(data.error || "Kunde inte hämta inbjudan")
+          setIsLoading(false)
+          return
+        }
+
+        if (!data || !data.email) {
+          setError("Inbjudan hittades inte eller är ogiltig")
+          setIsLoading(false)
           return
         }
 
         setInvitation(data)
-      } catch {
-        setError("Något gick fel")
+      } catch (err) {
+        console.error("Error fetching invitation:", err)
+        setError("Något gick fel när inbjudan skulle hämtas")
       } finally {
         setIsLoading(false)
       }
@@ -47,6 +55,9 @@ export default function InvitePage() {
 
     if (token) {
       fetchInvitation()
+    } else {
+      setError("Ogiltig inbjudningslänk")
+      setIsLoading(false)
     }
   }, [token])
 
@@ -121,7 +132,26 @@ export default function InvitePage() {
     )
   }
 
-  if (!invitation) return null
+  if (!isLoading && !invitation && !error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+        <Card variant="glass" className="max-w-md w-full text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-500/20 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-slate-100 mb-2">Inbjudan hittades inte</h1>
+          <p className="text-slate-400 mb-6">Inbjudan kan ha gått ut eller raderats.</p>
+          <Button onClick={() => router.push("/")}>Gå till startsidan</Button>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!invitation) {
+    return null
+  }
 
   const roleLabels: Record<string, string> = {
     OWNER: "Ägare",
