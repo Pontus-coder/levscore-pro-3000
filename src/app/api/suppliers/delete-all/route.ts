@@ -9,10 +9,10 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Verifiera att användaren har rätt behörighet (OWNER eller ADMIN)
-    if (context.role !== "OWNER" && context.role !== "ADMIN") {
+    // Endast OWNER kan radera all data
+    if (context.role !== "OWNER") {
       return NextResponse.json(
-        { error: "Du måste vara OWNER eller ADMIN för att radera all data" },
+        { error: "Endast ägare kan radera all data" },
         { status: 403 }
       )
     }

@@ -29,6 +29,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // Endast OWNER kan ladda upp data
+    if (ctx.role !== "OWNER") {
+      return NextResponse.json(
+        { error: "Endast ägare kan ladda upp data" },
+        { status: 403 }
+      )
+    }
+
     const formData = await request.formData()
     const file = formData.get("file") as File
     const mappingStr = formData.get("mapping") as string

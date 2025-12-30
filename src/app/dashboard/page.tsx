@@ -48,6 +48,7 @@ export default function DashboardPage() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [userRole, setUserRole] = useState<"OWNER" | "ADMIN" | "MEMBER" | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
@@ -74,8 +75,21 @@ export default function DashboardPage() {
   }, [status, router])
 
   useEffect(() => {
+    async function fetchUserRole() {
+      try {
+        const response = await fetch("/api/team")
+        if (response.ok) {
+          const data = await response.json()
+          setUserRole(data.currentUserRole || null)
+        }
+      } catch (error) {
+        console.error("Error fetching user role:", error)
+      }
+    }
+
     if (session) {
       fetchData()
+      fetchUserRole()
     }
   }, [session, fetchData])
 
@@ -153,7 +167,7 @@ export default function DashboardPage() {
             <p className="text-slate-400">Översikt av dina leverantörer</p>
           </div>
           <div className="flex gap-3">
-            {suppliers.length > 0 && (
+            {userRole === "OWNER" && suppliers.length > 0 && (
               <Button
                 onClick={() => setShowDeleteConfirm(true)}
                 variant="secondary"
@@ -165,14 +179,24 @@ export default function DashboardPage() {
                 Radera all data
               </Button>
             )}
-            <Link href="/upload">
-              <Button>
-                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            {userRole === "OWNER" && (
+              <Link href="/upload">
+                <Button>
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  Ladda upp ny data
+                </Button>
+              </Link>
+            )}
+            {userRole !== "OWNER" && (
+              <div className="px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-400">
+                <svg className="w-4 h-4 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                Ladda upp ny data
-              </Button>
-            </Link>
+                Endast ägare kan ladda upp och radera data
+              </div>
+            )}
           </div>
         </div>
 
@@ -223,12 +247,18 @@ export default function DashboardPage() {
               </svg>
             </div>
             <h2 className="text-xl font-semibold text-slate-100 mb-2">Ingen data ännu</h2>
-            <p className="text-slate-400 mb-6">Ladda upp din Excel-fil för att komma igång</p>
-            <Link href="/upload">
-              <Button size="lg">
-                Ladda upp Excel-fil
-              </Button>
-            </Link>
+            <p className="text-slate-400 mb-6">
+              {userRole === "OWNER" 
+                ? "Ladda upp din Excel-fil för att komma igång"
+                : "Kontakta ägaren för att ladda upp data"}
+            </p>
+            {userRole === "OWNER" && (
+              <Link href="/upload">
+                <Button size="lg">
+                  Ladda upp Excel-fil
+                </Button>
+              </Link>
+            )}
           </div>
         ) : (
           <>
