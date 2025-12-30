@@ -44,6 +44,10 @@ model User {
   email         String?              @unique
   emailVerified DateTime?
   image         String?
+  isSuperAdmin  Boolean              @default(false)
+  isBlocked     Boolean              @default(false)
+  blockedAt     DateTime?
+  blockedReason String?             @db.Text
   accounts      Account[]
   sessions      Session[]
   memberships   OrganizationMember[]

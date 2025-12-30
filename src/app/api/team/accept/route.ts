@@ -46,6 +46,21 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
+      // Check if user is blocked (shouldn't happen if signIn callback works, but double-check)
+      const blockedCheck = await prisma.user.findFirst({
+        where: {
+          email: session.user.email,
+          isBlocked: true,
+        },
+      })
+      
+      if (blockedCheck) {
+        return NextResponse.json(
+          { error: "Din användare är blockerad" },
+          { status: 403 }
+        )
+      }
+
       user = await prisma.user.create({
         data: {
           email: session.user.email,
@@ -53,6 +68,14 @@ export async function POST(request: NextRequest) {
           image: session.user.image,
         },
       })
+    }
+
+    // Double-check if user is blocked
+    if (user.isBlocked) {
+      return NextResponse.json(
+        { error: "Din användare är blockerad" },
+        { status: 403 }
+      )
     }
 
     // Check if invitation email matches (case insensitive)

@@ -155,6 +155,24 @@ export default function DashboardPage() {
     return null
   }
 
+  // Block blocked users
+  if ((session.user as any)?.isBlocked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card variant="glass" className="max-w-md text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-red-500/20 flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-slate-100 mb-2">Konto blockerat</h1>
+          <p className="text-slate-400 mb-6">Ditt konto har blockerats. Kontakta administratören för mer information.</p>
+          <Button onClick={() => router.push("/")}>Tillbaka</Button>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen">
       <Header />

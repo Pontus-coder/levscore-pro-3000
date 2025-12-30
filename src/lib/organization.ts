@@ -50,6 +50,11 @@ export async function getOrganizationContext(request?: { cookies: { get: (name: 
     return null
   }
 
+  // Block blocked users
+  if (user.isBlocked) {
+    return null
+  }
+
   // Get selected organization ID from cookie if available
   let selectedOrgId: string | null = null
   if (request) {
