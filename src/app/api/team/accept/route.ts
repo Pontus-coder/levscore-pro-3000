@@ -128,6 +128,7 @@ export async function GET(request: NextRequest) {
       include: {
         organization: {
           select: {
+            id: true,
             name: true,
             _count: { select: { members: true } },
           },
@@ -139,11 +140,16 @@ export async function GET(request: NextRequest) {
     })
 
     if (!invitation) {
-      return NextResponse.json({ error: "Inbjudan hittades inte" }, { status: 404 })
+      return NextResponse.json({ error: "Inbjudan hittades inte. Den kan ha gått ut eller raderats." }, { status: 404 })
     }
 
     if (invitation.expiresAt < new Date()) {
       return NextResponse.json({ error: "Inbjudan har gått ut" }, { status: 400 })
+    }
+
+    // Kontrollera att organisationen fortfarande finns
+    if (!invitation.organization || !invitation.organization.id) {
+      return NextResponse.json({ error: "Organisationen för denna inbjudan finns inte längre" }, { status: 404 })
     }
 
     return NextResponse.json({
