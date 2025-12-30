@@ -1,32 +1,100 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "./ui/Button"
 
+interface Organization {
+  id: string
+  name: string
+  slug: string
+  role: "OWNER" | "ADMIN" | "MEMBER"
+  memberCount: number
+  supplierCount: number
+}
+
 export function Header() {
   const pathname = usePathname()
+  const router = useRouter()
   const { data: session } = useSession()
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showOrgMenu, setShowOrgMenu] = useState(false)
+  const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [currentOrg, setCurrentOrg] = useState<Organization | null>(null)
+  const [isLoadingOrgs, setIsLoadingOrgs] = useState(true)
   const menuRef = useRef<HTMLDivElement>(null)
+  const orgMenuRef = useRef<HTMLDivElement>(null)
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard" },
     { name: "Ladda upp", href: "/upload" },
   ]
 
-  // Close menu when clicking outside
+  // Fetch organizations and current org
+  useEffect(() => {
+    async function fetchOrganizations() {
+      try {
+        const response = await fetch("/api/organizations")
+        if (response.ok) {
+          const data = await response.json()
+          setOrganizations(data.organizations || [])
+          
+          // Get current org from cookie or use first one
+          const cookies = document.cookie.split("; ")
+          const selectedOrgId = cookies.find(c => c.startsWith("selectedOrganizationId="))?.split("=")[1]
+          const current = selectedOrgId 
+            ? data.organizations.find((o: Organization) => o.id === selectedOrgId)
+            : data.organizations[0]
+          setCurrentOrg(current || data.organizations[0] || null)
+        }
+      } catch (error) {
+        console.error("Error fetching organizations:", error)
+      } finally {
+        setIsLoadingOrgs(false)
+      }
+    }
+
+    if (session) {
+      fetchOrganizations()
+    }
+  }, [session])
+
+  // Close menus when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false)
       }
+      if (orgMenuRef.current && !orgMenuRef.current.contains(event.target as Node)) {
+        setShowOrgMenu(false)
+      }
     }
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
+
+  const handleSwitchOrg = async (orgId: string) => {
+    try {
+      const response = await fetch("/api/organizations/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: orgId }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentOrg(data.organization)
+        setShowOrgMenu(false)
+        // Reload page to update all data
+        router.refresh()
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error("Error switching organization:", error)
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-xl border-b border-slate-800">
@@ -64,6 +132,74 @@ export function Header() {
               )
             })}
           </nav>
+
+          {/* Organization Selector */}
+          {session?.user && !isLoadingOrgs && currentOrg && (
+            <div className="relative" ref={orgMenuRef}>
+              <button
+                onClick={() => setShowOrgMenu(!showOrgMenu)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-sm"
+              >
+                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                <span className="text-slate-200 font-medium max-w-[200px] truncate">
+                  {currentOrg.name}
+                </span>
+                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Organization Dropdown */}
+              {showOrgMenu && (
+                <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-xl py-2 animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                  <div className="px-4 py-2 border-b border-slate-700">
+                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Organisationer</p>
+                  </div>
+                  
+                  <div className="max-h-64 overflow-y-auto">
+                    {organizations.map((org) => (
+                      <button
+                        key={org.id}
+                        onClick={() => handleSwitchOrg(org.id)}
+                        className={`w-full flex items-center justify-between px-4 py-3 text-sm transition-colors ${
+                          currentOrg.id === org.id
+                            ? "bg-emerald-500/20 text-emerald-400"
+                            : "text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                        }`}
+                      >
+                        <div className="flex-1 text-left">
+                          <div className="font-medium">{org.name}</div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {org.memberCount} medlemmar • {org.supplierCount} leverantörer
+                          </div>
+                        </div>
+                        {currentOrg.id === org.id && (
+                          <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="border-t border-slate-700 px-4 py-2">
+                    <Link
+                      href="/team"
+                      onClick={() => setShowOrgMenu(false)}
+                      className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Skapa eller hantera organisationer
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* User Menu */}
           {session?.user && (

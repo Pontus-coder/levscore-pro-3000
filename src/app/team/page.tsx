@@ -67,6 +67,22 @@ export default function TeamPage() {
   const [inviteSuccess, setInviteSuccess] = useState<string | null>(null)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
 
+  // Organizations management
+  const [organizations, setOrganizations] = useState<Array<{
+    id: string
+    name: string
+    slug: string
+    role: "OWNER" | "ADMIN" | "MEMBER"
+    memberCount: number
+    supplierCount: number
+  }>>([])
+  const [showCreateOrg, setShowCreateOrg] = useState(false)
+  const [newOrgName, setNewOrgName] = useState("")
+  const [isCreatingOrg, setIsCreatingOrg] = useState(false)
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null)
+  const [editingOrgName, setEditingOrgName] = useState("")
+  const [isUpdatingOrg, setIsUpdatingOrg] = useState(false)
+
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/")
@@ -92,8 +108,21 @@ export default function TeamPage() {
       }
     }
 
+    async function fetchOrganizations() {
+      try {
+        const response = await fetch("/api/organizations")
+        if (response.ok) {
+          const data = await response.json()
+          setOrganizations(data.organizations || [])
+        }
+      } catch (error) {
+        console.error("Error fetching organizations:", error)
+      }
+    }
+
     if (status === "authenticated") {
       fetchTeam()
+      fetchOrganizations()
     }
   }, [status])
 
@@ -192,6 +221,106 @@ export default function TeamPage() {
     }
   }
 
+  const handleCreateOrg = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newOrgName.trim()) return
+
+    setIsCreatingOrg(true)
+    setError(null)
+
+    try {
+      const response = await fetch("/api/organizations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newOrgName.trim() }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "Kunde inte skapa organisation")
+        return
+      }
+
+      // Refresh organizations list
+      const orgsResponse = await fetch("/api/organizations")
+      if (orgsResponse.ok) {
+        const orgsData = await orgsResponse.json()
+        setOrganizations(orgsData.organizations || [])
+      }
+
+      setNewOrgName("")
+      setShowCreateOrg(false)
+    } catch {
+      setError("Något gick fel")
+    } finally {
+      setIsCreatingOrg(false)
+    }
+  }
+
+  const handleUpdateOrgName = async (orgId: string) => {
+    if (!editingOrgName.trim()) {
+      setEditingOrgId(null)
+      return
+    }
+
+    setIsUpdatingOrg(true)
+    setError(null)
+
+    try {
+      const response = await fetch(`/api/organizations/${orgId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editingOrgName.trim() }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "Kunde inte uppdatera organisationsnamn")
+        return
+      }
+
+      // Refresh organizations list and team data
+      const orgsResponse = await fetch("/api/organizations")
+      if (orgsResponse.ok) {
+        const orgsData = await orgsResponse.json()
+        setOrganizations(orgsData.organizations || [])
+      }
+
+      const teamResponse = await fetch("/api/team")
+      if (teamResponse.ok) {
+        const teamData = await teamResponse.json()
+        setTeam(teamData)
+      }
+
+      setEditingOrgId(null)
+      setEditingOrgName("")
+    } catch {
+      setError("Något gick fel")
+    } finally {
+      setIsUpdatingOrg(false)
+    }
+  }
+
+  const handleSwitchOrg = async (orgId: string) => {
+    try {
+      const response = await fetch("/api/organizations/switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId: orgId }),
+      })
+
+      if (response.ok) {
+        // Reload page to update all data
+        window.location.reload()
+      }
+    } catch (error) {
+      console.error("Error switching organization:", error)
+      setError("Kunde inte växla organisation")
+    }
+  }
+
   if (status === "loading" || isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -211,9 +340,210 @@ export default function TeamPage() {
       
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-slate-100">{team.organization.name}</h1>
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-2xl font-bold text-slate-100">
+              {editingOrgId === team.organization.id ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={editingOrgName}
+                    onChange={(e) => setEditingOrgName(e.target.value)}
+                    onBlur={() => handleUpdateOrgName(team.organization.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleUpdateOrgName(team.organization.id)
+                      } else if (e.key === "Escape") {
+                        setEditingOrgId(null)
+                        setEditingOrgName("")
+                      }
+                    }}
+                    autoFocus
+                    className="px-3 py-1 bg-slate-800 border border-emerald-500/50 rounded text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span>{team.organization.name}</span>
+                  {(team.currentUserRole === "OWNER" || team.currentUserRole === "ADMIN") && (
+                    <button
+                      onClick={() => {
+                        setEditingOrgId(team.organization.id)
+                        setEditingOrgName(team.organization.name)
+                      }}
+                      className="p-1 text-slate-400 hover:text-slate-300 transition-colors"
+                      title="Redigera organisationsnamn"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
+            </h1>
+          </div>
           <p className="text-slate-400">Hantera ditt team och bjud in nya medlemmar</p>
         </div>
+
+        {/* Organizations List */}
+        {organizations.length > 1 && (
+          <Card variant="glass" className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-100">Mina organisationer</h2>
+              <Button variant="secondary" onClick={() => setShowCreateOrg(true)}>
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Skapa ny
+              </Button>
+            </div>
+
+            {showCreateOrg && (
+              <form onSubmit={handleCreateOrg} className="mb-4 p-4 bg-slate-800/30 rounded-lg">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newOrgName}
+                    onChange={(e) => setNewOrgName(e.target.value)}
+                    placeholder="T.ex. Bolag X AB"
+                    className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    autoFocus
+                  />
+                  <Button type="submit" isLoading={isCreatingOrg}>
+                    Skapa
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => {
+                    setShowCreateOrg(false)
+                    setNewOrgName("")
+                  }}>
+                    Avbryt
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            <div className="space-y-2">
+              {organizations.map((org) => (
+                <div
+                  key={org.id}
+                  className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                    org.id === team.organization.id
+                      ? "bg-emerald-500/20 border border-emerald-500/30"
+                      : "bg-slate-800/30 hover:bg-slate-800/50"
+                  }`}
+                >
+                  <div className="flex-1">
+                    {editingOrgId === org.id ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editingOrgName}
+                          onChange={(e) => setEditingOrgName(e.target.value)}
+                          onBlur={() => handleUpdateOrgName(org.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleUpdateOrgName(org.id)
+                            } else if (e.key === "Escape") {
+                              setEditingOrgId(null)
+                              setEditingOrgName("")
+                            }
+                          }}
+                          autoFocus
+                          className="flex-1 px-2 py-1 bg-slate-800 border border-emerald-500/50 rounded text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-100">{org.name}</span>
+                        {org.id === team.organization.id && (
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-xs font-medium">
+                            Aktiv
+                          </span>
+                        )}
+                        {(org.role === "OWNER" || org.role === "ADMIN") && (
+                          <button
+                            onClick={() => {
+                              setEditingOrgId(org.id)
+                              setEditingOrgName(org.name)
+                            }}
+                            className="p-1 text-slate-400 hover:text-slate-300 transition-colors"
+                            title="Redigera organisationsnamn"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <div className="text-xs text-slate-500 mt-1">
+                      {org.memberCount} medlemmar • {org.supplierCount} leverantörer • {roleLabels[org.role]}
+                    </div>
+                  </div>
+                  {org.id !== team.organization.id && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleSwitchOrg(org.id)}
+                      className="ml-4"
+                    >
+                      Växla till
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {/* Create Organization (if user only has one) */}
+        {organizations.length === 1 && (
+          <Card variant="glass" className="mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-100 mb-1">Skapa ny organisation</h2>
+                <p className="text-sm text-slate-400">Skapa en ny organisation för ett annat bolag eller projekt</p>
+              </div>
+              {!showCreateOrg && (
+                <Button variant="secondary" onClick={() => setShowCreateOrg(true)}>
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Skapa ny
+                </Button>
+              )}
+            </div>
+
+            {showCreateOrg && (
+              <form onSubmit={handleCreateOrg} className="mt-4 p-4 bg-slate-800/30 rounded-lg">
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-300 mb-1.5">Organisationsnamn</label>
+                    <input
+                      type="text"
+                      value={newOrgName}
+                      onChange={(e) => setNewOrgName(e.target.value)}
+                      placeholder="T.ex. Bolag X AB"
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      autoFocus
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button type="button" variant="ghost" onClick={() => {
+                      setShowCreateOrg(false)
+                      setNewOrgName("")
+                    }}>
+                      Avbryt
+                    </Button>
+                    <Button type="submit" isLoading={isCreatingOrg}>
+                      Skapa organisation
+                    </Button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </Card>
+        )}
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">

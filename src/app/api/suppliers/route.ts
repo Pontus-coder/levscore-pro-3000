@@ -5,7 +5,7 @@ import { calculateAdjustedValues } from "@/lib/score-calculator"
 
 export async function GET(request: NextRequest) {
   try {
-    const ctx = await getOrganizationContext()
+    const ctx = await getOrganizationContext(request)
     
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

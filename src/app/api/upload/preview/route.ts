@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 
 export async function POST(request: NextRequest) {
   try {
-    const ctx = await getOrganizationContext()
+    const ctx = await getOrganizationContext(request)
     
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

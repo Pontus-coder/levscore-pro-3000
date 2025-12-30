@@ -11,7 +11,7 @@ import {
 // POST - Send invitation
 export async function POST(request: NextRequest) {
   try {
-    const ctx = await getOrganizationContext()
+    const ctx = await getOrganizationContext(request)
     
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
 // DELETE - Cancel invitation
 export async function DELETE(request: NextRequest) {
   try {
-    const ctx = await getOrganizationContext()
+    const ctx = await getOrganizationContext(request)
     
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

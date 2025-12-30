@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const ctx = await getOrganizationContext()
+    const ctx = await getOrganizationContext(request)
     
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

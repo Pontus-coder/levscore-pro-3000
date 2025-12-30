@@ -46,7 +46,7 @@ function parseStringValue(value: unknown, maxLength: number = 500): string | nul
 
 export async function POST(request: NextRequest) {
   try {
-    const ctx = await getOrganizationContext()
+    const ctx = await getOrganizationContext(request)
     
     if (!ctx) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

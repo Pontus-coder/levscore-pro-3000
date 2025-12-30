@@ -1,6 +1,7 @@
 import { prisma } from "./db"
 import { getServerSession } from "next-auth"
 import { authOptions } from "./auth"
+import { NextRequest } from "next/server"
 import crypto from "crypto"
 
 export type MemberRole = "OWNER" | "ADMIN" | "MEMBER"
@@ -22,9 +23,9 @@ export interface OrganizationContext {
 
 /**
  * Get the current user's organization context
- * Creates an organization for new users automatically
+ * Uses selected organization from cookie, or first organization, or creates one
  */
-export async function getOrganizationContext(): Promise<OrganizationContext | null> {
+export async function getOrganizationContext(request?: { cookies: { get: (name: string) => { value: string } | undefined } } | NextRequest): Promise<OrganizationContext | null> {
   const session = await getServerSession(authOptions)
   
   if (!session?.user?.email) {
@@ -38,6 +39,9 @@ export async function getOrganizationContext(): Promise<OrganizationContext | nu
         include: {
           organization: true,
         },
+        orderBy: {
+          joinedAt: "asc", // Oldest first (likely the user's own organization)
+        },
       },
     },
   })
@@ -46,8 +50,21 @@ export async function getOrganizationContext(): Promise<OrganizationContext | nu
     return null
   }
 
-  // Check if user has any organization membership
-  let membership = user.memberships[0] as typeof user.memberships[0] | null
+  // Get selected organization ID from cookie if available
+  let selectedOrgId: string | null = null
+  if (request) {
+    // Handle both NextRequest and simple object with cookies
+    const cookies = 'cookies' in request ? request.cookies : (request as any).cookies
+    if (cookies) {
+      const orgCookie = cookies.get("selectedOrganizationId")
+      selectedOrgId = orgCookie?.value || null
+    }
+  }
+
+  // Find membership - prefer selected org, otherwise first one
+  let membership = selectedOrgId
+    ? user.memberships.find(m => m.organizationId === selectedOrgId) || null
+    : (user.memberships[0] as typeof user.memberships[0] | null)
 
   // If no membership, create a personal organization
   if (!membership) {

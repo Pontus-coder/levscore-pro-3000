@@ -4,7 +4,7 @@ import { getOrganizationContext } from "@/lib/organization"
 
 export async function DELETE(request: NextRequest) {
   try {
-    const context = await getOrganizationContext()
+    const context = await getOrganizationContext(request)
     if (!context) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
