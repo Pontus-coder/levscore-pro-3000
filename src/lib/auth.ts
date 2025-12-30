@@ -70,8 +70,9 @@ export const authOptions: NextAuthOptions = {
           })
           
           if (user) {
-            (session.user as any).isSuperAdmin = user.isSuperAdmin
-            (session.user as any).isBlocked = user.isBlocked
+            const userSession = session.user as any
+            userSession.isSuperAdmin = Boolean(user.isSuperAdmin)
+            userSession.isBlocked = Boolean(user.isBlocked)
           }
         } catch (error) {
           console.error("Error fetching user in session callback:", error)

@@ -8,6 +8,7 @@ import { KPICard } from "@/components/KPICard"
 import { SupplierTable } from "@/components/SupplierTable"
 import { TierChart } from "@/components/TierChart"
 import { Button } from "@/components/ui/Button"
+import { Card } from "@/components/ui/Card"
 import Link from "next/link"
 
 interface Supplier {
