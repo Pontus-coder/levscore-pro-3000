@@ -52,12 +52,23 @@ export default function OnboardingPage() {
 
   const handleCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!orgName.trim()) return
+    if (!orgName.trim() || isCreating) return
 
     setIsCreating(true)
     setError(null)
 
     try {
+      // Double-check user doesn't already have an organization
+      const checkResponse = await fetch("/api/organizations")
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json()
+        if (checkData.organizations && checkData.organizations.length > 0) {
+          // Already has org, redirect without creating
+          router.push("/dashboard")
+          return
+        }
+      }
+
       const response = await fetch("/api/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,16 +79,17 @@ export default function OnboardingPage() {
 
       if (!response.ok) {
         setError(data.error || "Kunde inte skapa organisation")
+        setIsCreating(false)
         return
       }
 
-      // Success - redirect to dashboard
+      // Success - redirect to dashboard (don't reset isCreating to prevent double-click)
       router.push("/dashboard")
     } catch (err) {
       setError("Något gick fel")
-    } finally {
       setIsCreating(false)
     }
+    // Note: Don't set isCreating to false on success to prevent double-submissions during redirect
   }
 
   if (status === "loading" || hasOrganizations === null) {

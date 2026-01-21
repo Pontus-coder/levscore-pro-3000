@@ -32,6 +32,9 @@ export function Header() {
     { name: "Ladda upp", href: "/upload" },
   ]
 
+  // Check if user is super admin from session
+  const isSuperAdmin = session?.user && (session.user as any).isSuperAdmin
+
   // Fetch organizations and current org
   useEffect(() => {
     async function fetchOrganizations() {
@@ -131,6 +134,19 @@ export function Header() {
                 </Link>
               )
             })}
+            {/* Super Admin Link in main nav */}
+            {isSuperAdmin && (
+              <Link
+                href="/admin"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  pathname === "/admin"
+                    ? "bg-amber-500/20 text-amber-400"
+                    : "text-amber-400/70 hover:text-amber-400 hover:bg-amber-500/10"
+                }`}
+              >
+                Admin
+              </Link>
+            )}
           </nav>
 
           {/* Organization Selector */}
