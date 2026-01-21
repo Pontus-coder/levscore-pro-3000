@@ -75,7 +75,7 @@ export default function Home() {
               </svg>
             </div>
             <h3 className="font-semibold text-slate-100 mb-2">Insiktsfull Dashboard</h3>
-            <p className="text-sm text-slate-500 leading-relaxed">Överskådlig vy med KPI:er, tier-fördelning och handlingsrekommendationer.</p>
+            <p className="text-sm text-slate-500 leading-relaxed">Överskådlig vy med KPI:er, tier-fördelning och åtgärdsförslag.</p>
           </div>
         </div>
 
