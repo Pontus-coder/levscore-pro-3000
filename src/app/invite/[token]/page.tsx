@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/Button"
 interface InvitationInfo {
   email: string
   role: string
-  organizationName: string
-  memberCount: number
+  isStandalone?: boolean
+  organizationName?: string
+  memberCount?: number
   invitedBy: string
   expiresAt: string
 }
@@ -86,8 +87,12 @@ export default function InvitePage() {
         return
       }
 
-      // Redirect to dashboard
-      router.push("/dashboard")
+      // Redirect based on invitation type
+      if (data.isStandalone || data.redirectTo === "/onboarding") {
+        router.push("/onboarding")
+      } else {
+        router.push("/dashboard")
+      }
     } catch {
       setError("Något gick fel")
     } finally {
@@ -159,38 +164,74 @@ export default function InvitePage() {
     MEMBER: "Medlem",
   }
 
+  // Check if it's a standalone invitation
+  const isStandalone = invitation.isStandalone
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <Card variant="glass" className="max-w-md w-full">
         <div className="text-center mb-6">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-500/20 flex items-center justify-center">
-            <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-            </svg>
+          <div className={`w-16 h-16 mx-auto mb-4 rounded-2xl ${isStandalone ? 'bg-purple-500/20' : 'bg-emerald-500/20'} flex items-center justify-center`}>
+            {isStandalone ? (
+              <svg className="w-8 h-8 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+            ) : (
+              <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+            )}
           </div>
-          <h1 className="text-2xl font-bold text-slate-100 mb-2">Team-inbjudan</h1>
+          <h1 className="text-2xl font-bold text-slate-100 mb-2">
+            {isStandalone ? "Välkommen till LevScore PRO" : "Team-inbjudan"}
+          </h1>
           <p className="text-slate-400">
-            Du har blivit inbjuden att gå med i ett team
+            {isStandalone 
+              ? "Du har blivit inbjuden att skapa ditt eget konto"
+              : "Du har blivit inbjuden att gå med i ett team"
+            }
           </p>
         </div>
 
         <div className="space-y-4 mb-6">
-          <div className="p-4 bg-slate-800/50 rounded-lg">
-            <p className="text-sm text-slate-400 mb-1">Organisation</p>
-            <p className="text-lg font-semibold text-slate-100">{invitation.organizationName}</p>
-            <p className="text-sm text-slate-500">{invitation.memberCount} medlemmar</p>
-          </div>
+          {isStandalone ? (
+            <>
+              <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <svg className="w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="font-medium text-purple-400">Skapa din egen organisation</p>
+                </div>
+                <p className="text-sm text-slate-400">
+                  Efter att du accepterat inbjudan kan du skapa din egen organisation och bjuda in dina teammedlemmar.
+                </p>
+              </div>
+              <div className="p-4 bg-slate-800/50 rounded-lg">
+                <p className="text-sm text-slate-400 mb-1">Inbjuden av</p>
+                <p className="font-medium text-slate-100">{invitation.invitedBy}</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="p-4 bg-slate-800/50 rounded-lg">
+                <p className="text-sm text-slate-400 mb-1">Organisation</p>
+                <p className="text-lg font-semibold text-slate-100">{invitation.organizationName}</p>
+                <p className="text-sm text-slate-500">{invitation.memberCount} medlemmar</p>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-slate-800/50 rounded-lg">
-              <p className="text-sm text-slate-400 mb-1">Roll</p>
-              <p className="font-medium text-emerald-400">{roleLabels[invitation.role]}</p>
-            </div>
-            <div className="p-4 bg-slate-800/50 rounded-lg">
-              <p className="text-sm text-slate-400 mb-1">Inbjuden av</p>
-              <p className="font-medium text-slate-100">{invitation.invitedBy}</p>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <p className="text-sm text-slate-400 mb-1">Roll</p>
+                  <p className="font-medium text-emerald-400">{roleLabels[invitation.role]}</p>
+                </div>
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <p className="text-sm text-slate-400 mb-1">Inbjuden av</p>
+                  <p className="font-medium text-slate-100">{invitation.invitedBy}</p>
+                </div>
+              </div>
+            </>
+          )}
 
           {session && session.user?.email?.toLowerCase() !== invitation.email.toLowerCase() && (
             <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg">
@@ -215,7 +256,7 @@ export default function InvitePage() {
               onClick={handleAccept}
               isLoading={isAccepting}
             >
-              Logga in för att acceptera
+              {isStandalone ? "Logga in och kom igång" : "Logga in för att acceptera"}
             </Button>
           ) : (
             <Button 
@@ -224,7 +265,7 @@ export default function InvitePage() {
               isLoading={isAccepting}
               disabled={session.user?.email?.toLowerCase() !== invitation.email.toLowerCase()}
             >
-              Acceptera inbjudan
+              {isStandalone ? "Kom igång" : "Acceptera inbjudan"}
             </Button>
           )}
           

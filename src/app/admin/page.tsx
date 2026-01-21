@@ -51,16 +51,35 @@ interface Organization {
   }>
 }
 
+interface StandaloneInvitation {
+  id: string
+  email: string
+  token: string
+  expiresAt: string
+  createdAt: string
+  invitedBy: {
+    name: string | null
+    email: string | null
+  }
+}
+
 export default function AdminPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState<"users" | "organizations">("users")
+  const [activeTab, setActiveTab] = useState<"users" | "organizations" | "invitations">("users")
   const [users, setUsers] = useState<User[]>([])
   const [organizations, setOrganizations] = useState<Organization[]>([])
+  const [invitations, setInvitations] = useState<StandaloneInvitation[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [blockedFilter, setBlockedFilter] = useState<string | null>(null)
+  
+  // New invitation form
+  const [showInviteForm, setShowInviteForm] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState("")
+  const [isInviting, setIsInviting] = useState(false)
+  const [inviteSuccess, setInviteSuccess] = useState<{ url: string; email: string } | null>(null)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -91,6 +110,7 @@ export default function AdminPage() {
       checkAccess()
       fetchUsers()
       fetchOrganizations()
+      fetchInvitations()
     }
   }, [status, session, router])
 
@@ -125,11 +145,85 @@ export default function AdminPage() {
     }
   }
 
+  const fetchInvitations = async () => {
+    try {
+      const response = await fetch("/api/admin/invitations")
+      if (response.ok) {
+        const data = await response.json()
+        setInvitations(data.invitations || [])
+      }
+    } catch (error) {
+      console.error("Error fetching invitations:", error)
+    }
+  }
+
+  const handleCreateInvitation = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inviteEmail.trim()) return
+
+    setIsInviting(true)
+    setError(null)
+    setInviteSuccess(null)
+
+    try {
+      const response = await fetch("/api/admin/invitations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail.trim() }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || "Kunde inte skapa inbjudan")
+        return
+      }
+
+      setInviteSuccess({ url: data.inviteUrl, email: inviteEmail.trim() })
+      setInviteEmail("")
+      setShowInviteForm(false)
+      fetchInvitations()
+    } catch (err) {
+      setError("Något gick fel")
+    } finally {
+      setIsInviting(false)
+    }
+  }
+
+  const handleDeleteInvitation = async (invitationId: string) => {
+    if (!confirm("Är du säker på att du vill ta bort denna inbjudan?")) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/admin/invitations?id=${invitationId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        alert(data.error || "Kunde inte ta bort inbjudan")
+        return
+      }
+
+      fetchInvitations()
+    } catch (error) {
+      alert("Något gick fel")
+    }
+  }
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+    alert("Länk kopierad!")
+  }
+
   useEffect(() => {
     if (activeTab === "users") {
       fetchUsers()
-    } else {
+    } else if (activeTab === "organizations") {
       fetchOrganizations()
+    } else if (activeTab === "invitations") {
+      fetchInvitations()
     }
   }, [searchTerm, blockedFilter, activeTab])
 
@@ -274,6 +368,16 @@ export default function AdminPage() {
             }`}
           >
             Organisationer ({organizations.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("invitations")}
+            className={`px-4 py-2 font-medium transition-colors ${
+              activeTab === "invitations"
+                ? "text-emerald-400 border-b-2 border-emerald-400"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            Inbjudningar ({invitations.length})
           </button>
         </div>
 
@@ -496,6 +600,154 @@ export default function AdminPage() {
                 </div>
               </Card>
             )}
+          </div>
+        )}
+
+        {/* Invitations Tab */}
+        {activeTab === "invitations" && (
+          <div className="space-y-6">
+            {/* Success message */}
+            {inviteSuccess && (
+              <Card variant="glass" className="border-emerald-500/30 bg-emerald-500/10">
+                <div className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-emerald-500/20">
+                    <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-medium text-emerald-400 mb-1">Inbjudan skapad!</h3>
+                    <p className="text-sm text-slate-300 mb-3">
+                      Skicka denna länk till <strong>{inviteSuccess.email}</strong>:
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 px-3 py-2 bg-slate-900/50 rounded text-sm text-slate-300 truncate">
+                        {inviteSuccess.url}
+                      </code>
+                      <Button
+                        size="sm"
+                        onClick={() => copyToClipboard(inviteSuccess.url)}
+                      >
+                        Kopiera
+                      </Button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setInviteSuccess(null)}
+                    className="text-slate-500 hover:text-slate-300"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </Card>
+            )}
+
+            {/* Create new invitation */}
+            <Card variant="glass">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-100">Bjud in ny användare</h2>
+                  <p className="text-sm text-slate-400">
+                    Skapa en inbjudan så användaren kan logga in och skapa sin egen organisation
+                  </p>
+                </div>
+                {!showInviteForm && (
+                  <Button onClick={() => setShowInviteForm(true)}>
+                    <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Ny inbjudan
+                  </Button>
+                )}
+              </div>
+
+              {showInviteForm && (
+                <form onSubmit={handleCreateInvitation} className="p-4 bg-slate-800/50 rounded-xl">
+                  <div className="flex gap-3">
+                    <Input
+                      type="email"
+                      placeholder="E-postadress"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      className="flex-1"
+                      autoFocus
+                    />
+                    <Button type="submit" disabled={!inviteEmail.trim() || isInviting} isLoading={isInviting}>
+                      Skapa inbjudan
+                    </Button>
+                    <Button type="button" variant="ghost" onClick={() => setShowInviteForm(false)}>
+                      Avbryt
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </Card>
+
+            {/* Pending invitations list */}
+            <Card variant="glass">
+              <h2 className="text-lg font-semibold text-slate-100 mb-4">
+                Väntande inbjudningar ({invitations.length})
+              </h2>
+              
+              {invitations.length > 0 ? (
+                <div className="divide-y divide-slate-800">
+                  {invitations.map((inv) => {
+                    const isExpired = new Date(inv.expiresAt) < new Date()
+                    return (
+                      <div key={inv.id} className="py-4 first:pt-0 last:pb-0">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-slate-100">{inv.email}</span>
+                              {isExpired && (
+                                <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded text-xs">
+                                  Utgången
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-500">
+                              Skapad {new Date(inv.createdAt).toLocaleDateString("sv-SE")} • 
+                              Går ut {new Date(inv.expiresAt).toLocaleDateString("sv-SE")}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!isExpired && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://levscorepro.com"
+                                  copyToClipboard(`${baseUrl}/invite/${inv.token}`)
+                                }}
+                              >
+                                Kopiera länk
+                              </Button>
+                            )}
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => handleDeleteInvitation(inv.id)}
+                              className="text-red-400"
+                            >
+                              Ta bort
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <svg className="w-12 h-12 mx-auto mb-3 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <p>Inga väntande inbjudningar</p>
+                </div>
+              )}
+            </Card>
           </div>
         )}
       </main>

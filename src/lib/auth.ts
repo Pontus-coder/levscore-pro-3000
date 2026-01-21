@@ -49,6 +49,7 @@ export const authOptions: NextAuthOptions = {
       }
 
       // New users can only sign in if they have a pending invitation
+      // (either standalone or organization-specific)
       const invitation = await prisma.invitation.findFirst({
         where: {
           email: email,

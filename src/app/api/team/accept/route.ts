@@ -86,6 +86,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Handle standalone invitations
+    if (invitation.isStandalone) {
+      // Delete the invitation - user can now create their own organization
+      await prisma.invitation.delete({ where: { id: invitation.id } })
+      
+      return NextResponse.json({
+        success: true,
+        message: "Välkommen till LevScore PRO! Du kan nu skapa din organisation.",
+        isStandalone: true,
+        redirectTo: "/onboarding",
+      })
+    }
+
+    // Regular organization invitation - check if organization exists
+    if (!invitation.organizationId || !invitation.organization) {
+      return NextResponse.json(
+        { error: "Organisationen för denna inbjudan finns inte längre" },
+        { status: 404 }
+      )
+    }
+
     // Check if already a member
     const existingMembership = await prisma.organizationMember.findUnique({
       where: {
@@ -170,6 +191,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Inbjudan har gått ut" }, { status: 400 })
     }
 
+    // Handle standalone invitations
+    if (invitation.isStandalone) {
+      return NextResponse.json({
+        email: invitation.email,
+        role: invitation.role,
+        isStandalone: true,
+        invitedBy: invitation.invitedBy.name || invitation.invitedBy.email,
+        expiresAt: invitation.expiresAt,
+      })
+    }
+
     // Kontrollera att organisationen fortfarande finns
     if (!invitation.organization || !invitation.organization.id) {
       return NextResponse.json({ error: "Organisationen för denna inbjudan finns inte längre" }, { status: 404 })
@@ -178,6 +210,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       email: invitation.email,
       role: invitation.role,
+      isStandalone: false,
       organizationName: invitation.organization.name,
       memberCount: invitation.organization._count.members,
       invitedBy: invitation.invitedBy.name || invitation.invitedBy.email,

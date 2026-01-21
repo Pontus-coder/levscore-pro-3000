@@ -101,18 +101,20 @@ enum MemberRole {
 
 // Invitation tokens for inviting new team members
 model Invitation {
-  id             String       @id @default(cuid())
+  id             String        @id @default(cuid())
   email          String
-  organizationId String
-  role           MemberRole   @default(MEMBER)
-  token          String       @unique
+  organizationId String?       // Optional - null för standalone-inbjudningar
+  role           MemberRole    @default(MEMBER)
+  token          String        @unique
   expiresAt      DateTime
   invitedById    String
-  invitedBy      User         @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now())
+  invitedBy      User          @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isStandalone   Boolean       @default(false)  // True = användaren kan skapa egen organisation
+  createdAt      DateTime      @default(now())
 
   @@unique([email, organizationId])
+  @@index([email, isStandalone])
 }
 
 model Supplier {
