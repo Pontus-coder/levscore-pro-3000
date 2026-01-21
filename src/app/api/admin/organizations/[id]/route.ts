@@ -30,21 +30,20 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Check if admin is a member of this organization
+    // Super admin can delete any organization, including ones they're a member of
+    // First remove their own membership if it exists (to avoid foreign key issues)
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
-      include: {
-        memberships: {
-          where: { organizationId: id },
-        },
-      },
+      select: { id: true },
     })
 
-    if (user?.memberships.length) {
-      return NextResponse.json(
-        { error: "Du kan inte ta bort en organisation du är medlem i. Lämna organisationen först." },
-        { status: 400 }
-      )
+    if (user) {
+      await prisma.organizationMember.deleteMany({
+        where: {
+          userId: user.id,
+          organizationId: id,
+        },
+      })
     }
 
     // Delete organization (cascade will handle related data)
