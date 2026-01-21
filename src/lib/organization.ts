@@ -66,13 +66,14 @@ export async function getOrganizationContext(request?: { cookies: { get: (name: 
     }
   }
 
-  // Find membership - prefer selected org, otherwise first one
+  // Find membership - prefer selected org, otherwise ALWAYS fall back to first one
   let membership = selectedOrgId
-    ? user.memberships.find(m => m.organizationId === selectedOrgId) || null
+    ? user.memberships.find(m => m.organizationId === selectedOrgId) || user.memberships[0] || null
     : (user.memberships[0] as typeof user.memberships[0] | null)
 
-  // If no membership, create a personal organization
-  if (!membership) {
+  // ONLY create a new organization if user truly has no memberships at all
+  // This should only happen for new users via standalone invitations
+  if (!membership && user.memberships.length === 0) {
     const slug = generateSlug(user.name || user.email || "team")
     
     const organization = await prisma.organization.create({
