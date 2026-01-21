@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { FactorForm } from "@/components/FactorForm"
 import { ArticleList } from "@/components/ArticleList"
+import { MeetingNotes } from "@/components/MeetingNotes"
 
 interface CustomFactor {
   id: string
@@ -946,6 +947,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               
               <FactorForm supplierId={supplier.id} onSuccess={fetchSupplier} />
             </Card>
+
+            {/* Meeting Notes */}
+            <MeetingNotes supplierId={supplier.id} />
           </div>
 
           {/* Sidebar */}

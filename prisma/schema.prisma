@@ -54,6 +54,7 @@ model User {
   customFactors CustomFactor[]
   uploads       UploadHistory[]
   invitationsSent Invitation[]       @relation("InvitedBy")
+  meetingNotes  MeetingNote[]
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 }
@@ -151,6 +152,7 @@ model Supplier {
   adjustedTotalScore Float?                       // totalScore med adjustedMarginScore
   customFactors     CustomFactor[]
   articles          Article[]                     // Artiklar för denna leverantör
+  meetingNotes      MeetingNote[]                 // Mötesanteckningar för denna leverantör
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -201,4 +203,19 @@ model Article {
 
   @@index([supplierId])
   @@index([supplierId, revenue])
+}
+
+model MeetingNote {
+  id          String    @id @default(cuid())
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     String    @db.Text
+  meetingDate DateTime?                         // När mötet ägde rum (valfritt)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([supplierId])
+  @@index([supplierId, createdAt])
 }

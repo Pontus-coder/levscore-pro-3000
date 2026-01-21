@@ -45,3 +45,5 @@ FROM "OrganizationMember" om
 WHERE uh."userId" = om."userId"
 AND uh."organizationId" IS NULL;
 
+
+
