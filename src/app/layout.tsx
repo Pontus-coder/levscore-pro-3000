@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import { Space_Grotesk, JetBrains_Mono } from "next/font/google"
+import { Analytics } from "@vercel/analytics/next"
 import "./globals.css"
 import { Providers } from "@/components/Providers"
 
@@ -50,6 +51,7 @@ export default function RootLayout({
           </div>
           {children}
         </Providers>
+        <Analytics />
       </body>
     </html>
   )
